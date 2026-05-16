@@ -41,3 +41,41 @@ dimensions detected on `2026-05-16`).
 
 See [`../DESIGN.md`](../DESIGN.md) → **Iteration log** →
 `2026-05-16 — Phase 1`.
+
+---
+
+## Phase 2 — operations, multi-select, dialogs
+
+**Viewport captured at:** `1233 × 1257` (Simple Browser dimensions
+detected on `2026-05-16`).
+
+**Routes / states captured** (driven by the `?cwd=…`, `?sel=…`,
+`?search=…`, `?props=…`, `?conflict=…`, `?clip=…`, `?fakeOp=…`,
+`?dark=…` demo URL handler in `BrowseScreen._applyDemoUrl`):
+
+### Light
+
+| State | Screenshot |
+| ----- | ---------- |
+| Root (clipboard banner + paste FAB after copy) | ![Clipboard paste, light](phase-2/clipboard-paste-light@1233x1257.png) |
+| Three folders multi-selected (action bar: copy / cut / delete / properties) | ![Selection, light](phase-2/selection-multi-light@1233x1257.png) |
+| Properties dialog for `/Documents/notes.txt` | ![Properties, light](phase-2/properties-dialog-light@1233x1257.png) |
+| Conflict dialog (Skip / Keep both / Replace) | ![Conflict, light](phase-2/conflict-dialog-light@1233x1257.png) |
+| Inline search active in `/Documents` (`note`) | ![Search, light](phase-2/search-active-light@1233x1257.png) |
+| Progress sheet mid-copy (2 / 3 items, 69 %) | ![Progress, light](phase-2/progress-sheet-light@1233x1257.png) |
+| Root (default landing) | ![Root, light](phase-2/browse-root-light@1233x1257.png) |
+| `/Documents` listing | ![Documents, light](phase-2/browse-documents-light@1233x1257.png) |
+
+### Dark
+
+| State | Screenshot |
+| ----- | ---------- |
+| Root | ![Root, dark](phase-2/browse-root-dark@1233x1257.png) |
+| Multi-select action bar | ![Selection, dark](phase-2/selection-multi-dark@1233x1257.png) |
+| Properties dialog | ![Properties, dark](phase-2/properties-dialog-dark@1233x1257.png) |
+| Progress sheet mid-copy | ![Progress, dark](phase-2/progress-sheet-dark@1233x1257.png) |
+
+### Review notes for this pass
+
+See [`../DESIGN.md`](../DESIGN.md) → **Iteration log** →
+`2026-05-16 — Phase 2`.

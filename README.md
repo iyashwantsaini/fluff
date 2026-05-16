@@ -107,14 +107,15 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | ----- | --------- | ------ |
 | 0 | Spec & plan locked | ✅ |
 | 1 | Workspace + `fluff_vfs` + `fluff_skin` + minimal browse screen | ✅ |
-| 2 | `fluff_vault` (encrypted streaming AEAD) | ⬜ |
-| 3 | `fluff_remote` (SMB + SFTP) + foreground operations | ⬜ |
-| 4 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ⬜ |
-| 5 | `fluff_documents_provider` shim plugin | ⬜ |
-| 6 | Servers + Quick Settings tiles + homescreen widgets | ⬜ |
-| 7 | Sync, nearby transfer, share links | ⬜ |
-| 8 | OCR + semantic search + AI organise | ⬜ |
-| 9 | Public 1.0 (F-Droid + GitHub Releases) | ⬜ |
+| 2 | `fluff_ops` (queue, copy/move/delete, conflicts) + multi-select + dialogs (web slice; Android foreground-task + journalled resume deferred to Phase 2.1) | ✅ |
+| 3 | `fluff_vault` (encrypted streaming AEAD) | ⬜ |
+| 4 | `fluff_remote` (SMB + SFTP) + foreground operations | ⬜ |
+| 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ⬜ |
+| 6 | `fluff_documents_provider` shim plugin | ⬜ |
+| 7 | Servers + Quick Settings tiles + homescreen widgets | ⬜ |
+| 8 | Sync, nearby transfer, share links | ⬜ |
+| 9 | OCR + semantic search + AI organise | ⬜ |
+| 10 | Public 1.0 (F-Droid + GitHub Releases) | ⬜ |
 
 Detailed PR-by-PR plan: [PLAN.md §5](PLAN.md#5-phased-roadmap).
 

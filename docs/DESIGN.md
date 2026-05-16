@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phase 1 — workspace + skeleton browser** (in progress) |
+| Current phase | **Phase 2 — operations + multi-select** (web slice shipped; Android slice deferred to Phase 2.1) |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -65,6 +65,9 @@ planned for non-Latin scripts — see
 | Date | Decision | Why |
 | --- | --- | --- |
 | 2026-05-16 | Default route is `BrowseScreen` over `LocalFsProvider` rooted at the platform home directory (`Directory.systemTemp.parent` on web stub). | Phase 1 doesn't have SAF yet; web build needs a path that exists. |
+| 2026-05-16 | `OperationQueue` lives on the main isolate for the web slice; deferred the `flutter_foreground_task` wrap + journalled resume to **Phase 2.1** (Android-only). | The PLAN.md "10 GB / kill / resume" acceptance gate is Android-specific. Web demo can't go to disk anyway. |
+| 2026-05-16 | Recursive directory copy in `OperationQueue._copyAll` is one level deep for the web slice (single `provider.list`). Multi-level recursion ships with Phase 2.1. | Avoid building a partial recursive walker now and replace it later with one that runs inside the foreground task. |
+| 2026-05-16 | Added a `?cwd=…&sel=…&search=…&props=…&conflict=…&clip=…&fakeOp=…&dark=…` demo-URL handler in `BrowseScreen._applyDemoUrl` (web-only via `kIsWeb`). | Flutter web's CanvasKit renderer doesn't surface long-press through Playwright mouse events, so screenshot routes need a deterministic state seed. |
 
 ## 5. Iteration log
 
@@ -133,6 +136,67 @@ Each pass of the **build-tier** skill appends an entry here with:
     all four PNGs at true `1233×1257`. Added
     [`docs/screenshots/README.md`](screenshots/README.md) as the
     structured index and linked it from the top-level README.
+
+### 2026-05-16 — Phase 2, first pass
+
+- **Scope**: new `packages/fluff_ops/` (pure Dart, no Flutter dep)
+  with `OperationKind`, `Operation`, `OperationStatus`,
+  `OperationProgress`, `ConflictPolicy`, `Conflict`, and
+  `OperationQueue` (sequential runner, broadcast progress + conflict
+  streams, auto-rename-on-conflict default). App-side: multi-select
+  (long-press → tap-toggle), in-app cut / copy clipboard with a
+  paste FAB, recursive delete, inline search (filters current
+  listing by substring), a `PropertiesDialog`, a `ConflictDialog`
+  (Skip / Keep both / Replace), and a bottom `ProgressSheet` driven
+  by `OperationQueue` streams.
+- **Routes / states**: root, `/Documents`, multi-select, properties,
+  conflict, search, progress sheet, clipboard banner — both light
+  and dark for the high-value ones.
+- **Viewport**: detected `1233×1257`, pinned with
+  `page.setViewportSize` before every capture (no hard-coded sizes).
+- **Screenshots**:
+  - `docs/screenshots/phase-2/browse-root-light@1233x1257.png`
+  - `docs/screenshots/phase-2/browse-root-dark@1233x1257.png`
+  - `docs/screenshots/phase-2/browse-documents-light@1233x1257.png`
+  - `docs/screenshots/phase-2/selection-multi-light@1233x1257.png`
+  - `docs/screenshots/phase-2/selection-multi-dark@1233x1257.png`
+  - `docs/screenshots/phase-2/properties-dialog-light@1233x1257.png`
+  - `docs/screenshots/phase-2/properties-dialog-dark@1233x1257.png`
+  - `docs/screenshots/phase-2/conflict-dialog-light@1233x1257.png`
+  - `docs/screenshots/phase-2/search-active-light@1233x1257.png`
+  - `docs/screenshots/phase-2/progress-sheet-light@1233x1257.png`
+  - `docs/screenshots/phase-2/progress-sheet-dark@1233x1257.png`
+  - `docs/screenshots/phase-2/clipboard-paste-light@1233x1257.png`
+- **Findings (per checklist)**:
+  - ✅ No content touches any viewport edge in any state. Selection
+    rows, dialogs, and the progress sheet all respect the
+    `spacing.lg` / `spacing.xl` page gutter.
+  - ✅ Action bar icons (copy / cut / delete / properties) have a
+    consistent 48 × 48 hit area and align with the AppBar baseline.
+  - ✅ Selected-row treatment reads cleanly in both modes — primary
+    border at 1.5 px plus a 35 %-alpha primary-container fill, with
+    an explicit check chip on the leading edge.
+  - ✅ Properties dialog: fixed 110-px label gutter, monospaced
+    path, light divider, close button right-aligned. No clipping
+    even on the long `/Documents/notes.txt` path.
+  - ✅ Conflict dialog: source + target labelled and aligned, the
+    primary action ("Replace") is filled, escape actions
+    ("Skip" / "Keep both") are text buttons. No ambiguous defaults.
+  - ✅ Progress sheet: lives in the Scaffold body (above the bottom
+    safe area), 4-px linear indicator, shows percentage on the
+    right, current item path truncated with ellipsis.
+- **Deferred to Phase 2.1 (Android)**:
+  - `flutter_foreground_task` hosting of `OperationQueue` (so
+    operations survive activity destruction).
+  - On-disk journal so a relaunch after kill resumes pending ops.
+  - SEND / VIEW intent receivers (`receive_sharing_intent` +
+    `app_links`).
+  - Recursive directory copy (vs the current shallow web copy).
+  - PLAN.md "10 GB / kill / resume" acceptance gate runs against
+    `LocalFsProvider` once SAF lands.
+- **Tests**: 6 / 6 green in `dart test packages/fluff_ops` —
+  copy, move, delete, auto-rename on conflict, progress emission,
+  failure surfacing.
 
 ---
 
