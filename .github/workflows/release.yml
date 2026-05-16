@@ -59,9 +59,11 @@ jobs:
             echo "signed=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Build web
+      - name: Generate launcher icons
         working-directory: app
-        run: flutter build web --no-tree-shake-icons --release
+        run: |
+          flutter pub get
+          dart run flutter_launcher_icons
 
       - name: Build APK
         working-directory: app
@@ -73,11 +75,6 @@ jobs:
         working-directory: app
         run: flutter build appbundle --release
         continue-on-error: true
-
-      - name: Package web
-        run: |
-          cd app/build/web
-          zip -r ../../../fluff-web.zip .
 
       - name: Resolve tag
         id: tag
@@ -96,6 +93,5 @@ jobs:
           generate_release_notes: true
           fail_on_unmatched_files: false
           files: |
-            fluff-web.zip
             app/build/app/outputs/flutter-apk/*.apk
             app/build/app/outputs/bundle/release/*.aab
