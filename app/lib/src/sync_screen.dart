@@ -247,15 +247,12 @@ class _EntryTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final subtitle = switch (entry.action) {
-      SyncAction.copy =>
-        'copy · ${_humanBytes(entry.sourceSize ?? 0)}',
+      SyncAction.copy => 'copy · ${_humanBytes(entry.sourceSize ?? 0)}',
       SyncAction.replace =>
         'replace · ${_humanBytes(entry.targetSize ?? 0)} → '
             '${_humanBytes(entry.sourceSize ?? 0)}',
-      SyncAction.delete =>
-        'delete · ${_humanBytes(entry.targetSize ?? 0)}',
-      SyncAction.skip =>
-        'unchanged · ${_humanBytes(entry.sourceSize ?? 0)}',
+      SyncAction.delete => 'delete · ${_humanBytes(entry.targetSize ?? 0)}',
+      SyncAction.skip => 'unchanged · ${_humanBytes(entry.sourceSize ?? 0)}',
     };
     return ListTile(
       contentPadding: EdgeInsets.zero,
@@ -313,10 +310,7 @@ buildDemoSyncPair() async {
   // index.md identical → skip.
   await tgt.writeBytes(FsPath.parse('/index.md'), bytes('keep me'));
   // extraneous file → delete.
-  await tgt.writeBytes(
-    FsPath.parse('/old-cache.bin'),
-    Uint8List(12 * 1024),
-  );
+  await tgt.writeBytes(FsPath.parse('/old-cache.bin'), Uint8List(12 * 1024));
 
   final pair = SyncPair(
     id: 'pair-pics',

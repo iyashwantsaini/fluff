@@ -30,28 +30,34 @@ class SyncEngine {
       final src = sourceFiles[rel]!;
       final tgt = targetFiles[rel];
       if (tgt == null) {
-        entries.add(SyncEntry(
-          relativePath: rel,
-          action: SyncAction.copy,
-          sourceSize: src.size,
-        ));
+        entries.add(
+          SyncEntry(
+            relativePath: rel,
+            action: SyncAction.copy,
+            sourceSize: src.size,
+          ),
+        );
       } else if (src.size != tgt.size ||
           (src.modified != null &&
               tgt.modified != null &&
               src.modified!.isAfter(tgt.modified!))) {
-        entries.add(SyncEntry(
-          relativePath: rel,
-          action: SyncAction.replace,
-          sourceSize: src.size,
-          targetSize: tgt.size,
-        ));
+        entries.add(
+          SyncEntry(
+            relativePath: rel,
+            action: SyncAction.replace,
+            sourceSize: src.size,
+            targetSize: tgt.size,
+          ),
+        );
       } else {
-        entries.add(SyncEntry(
-          relativePath: rel,
-          action: SyncAction.skip,
-          sourceSize: src.size,
-          targetSize: tgt.size,
-        ));
+        entries.add(
+          SyncEntry(
+            relativePath: rel,
+            action: SyncAction.skip,
+            sourceSize: src.size,
+            targetSize: tgt.size,
+          ),
+        );
       }
     }
 
@@ -59,21 +65,20 @@ class SyncEngine {
       final sortedTargetKeys = targetFiles.keys.toList()..sort();
       for (final rel in sortedTargetKeys) {
         if (visited.contains(rel)) continue;
-        entries.add(SyncEntry(
-          relativePath: rel,
-          action: SyncAction.delete,
-          targetSize: targetFiles[rel]!.size,
-        ));
+        entries.add(
+          SyncEntry(
+            relativePath: rel,
+            action: SyncAction.delete,
+            targetSize: targetFiles[rel]!.size,
+          ),
+        );
       }
     }
 
     return SyncPlan(entries);
   }
 
-  Future<Map<String, FsNode>> _collect(
-    FsProvider provider,
-    FsPath root,
-  ) async {
+  Future<Map<String, FsNode>> _collect(FsProvider provider, FsPath root) async {
     final out = <String, FsNode>{};
     Future<void> walk(FsPath dir, String relPrefix) async {
       final nodes = await provider.list(dir);

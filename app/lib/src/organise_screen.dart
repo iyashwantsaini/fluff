@@ -64,9 +64,7 @@ class _OrganiseScreenState extends State<OrganiseScreen> {
                     children: [
                       Text(
                         widget.plan.title,
-                        style: Theme.of(context)
-                            .textTheme
-                            .titleMedium
+                        style: Theme.of(context).textTheme.titleMedium
                             ?.copyWith(color: cs.onPrimaryContainer),
                       ),
                       const SizedBox(height: 2),
@@ -136,9 +134,7 @@ class _ActionTile extends StatelessWidget {
       margin: EdgeInsets.only(bottom: tokens.spacing.sm),
       padding: EdgeInsets.all(tokens.spacing.md),
       decoration: BoxDecoration(
-        color: accepted
-            ? cs.surfaceContainerHighest
-            : cs.surfaceContainerLow,
+        color: accepted ? cs.surfaceContainerHighest : cs.surfaceContainerLow,
         borderRadius: BorderRadius.circular(tokens.radius.md),
         border: Border.all(
           color: accepted ? cs.primary : cs.outlineVariant,

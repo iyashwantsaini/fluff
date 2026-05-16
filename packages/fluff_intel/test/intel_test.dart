@@ -36,20 +36,8 @@ void main() {
         sourcePath: '/x.png',
         language: 'en',
         blocks: [
-          OcrBlock(
-            text: 'Hello',
-            left: 0,
-            top: 0,
-            width: 0.5,
-            height: 0.1,
-          ),
-          OcrBlock(
-            text: 'World',
-            left: 0,
-            top: 0.2,
-            width: 0.5,
-            height: 0.1,
-          ),
+          OcrBlock(text: 'Hello', left: 0, top: 0, width: 0.5, height: 0.1),
+          OcrBlock(text: 'World', left: 0, top: 0.2, width: 0.5, height: 0.1),
         ],
       );
       expect(r.fullText, 'Hello\nWorld');

@@ -94,8 +94,10 @@ void main() {
         deleteExtraneous: false,
       );
       expect(plan.deleteCount, 0);
-      expect(plan.entries.any((e) => e.relativePath == 'leftover.txt'),
-          isFalse);
+      expect(
+        plan.entries.any((e) => e.relativePath == 'leftover.txt'),
+        isFalse,
+      );
     });
 
     test('identical trees produce only skips', () async {
@@ -118,12 +120,14 @@ void main() {
       final snaps = <List<NearbyDevice>>[];
       final sub = d.changes.listen(snaps.add);
 
-      d.announce(NearbyDevice(
-        id: 'a',
-        name: 'Phone',
-        kind: NearbyDeviceKind.phone,
-        address: '10.0.0.2',
-      ));
+      d.announce(
+        NearbyDevice(
+          id: 'a',
+          name: 'Phone',
+          kind: NearbyDeviceKind.phone,
+          address: '10.0.0.2',
+        ),
+      );
       d.pair('a');
       d.unpair('a');
       d.forget('a');
@@ -140,8 +144,13 @@ void main() {
       final d = NearbyDiscovery(seed: defaultSeedNearbyDevices());
       final names = d.devices.map((x) => x.name).toList();
       expect(names, hasLength(3));
-      expect(names, equals(List<String>.from(names)..sort((a, b) =>
-          a.toLowerCase().compareTo(b.toLowerCase()))));
+      expect(
+        names,
+        equals(
+          List<String>.from(names)
+            ..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase())),
+        ),
+      );
     });
   });
 }

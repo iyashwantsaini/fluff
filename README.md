@@ -115,7 +115,7 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 7 | Servers + Quick Settings tiles + homescreen widgets | ✅ (Phase 6 web slice: `fluff_share` model + `ShareServerController` + Servers screen; real `shelf` / `dart:io` sockets, Quick Tiles, home widgets, boot auto-start → Phase 6.1) |
 | 8 | Sync, nearby transfer, share links | ✅ (Phase 7 web slice: `fluff_sync` with `SyncEngine` diff + `NearbyDiscovery` + Sync / Nearby screens; real mDNS, TLS Wi-Fi Direct, resumable transfers, scheduling, encrypted share links + QR → Phase 7.1) |
 | 9 | OCR + semantic search + AI organise | ✅ (Phase 8 web slice: `fluff_intel` with `SemanticIndex` + `OrganisePlanner` + Search / AI-organise screens; real ML Kit OCR, on-device embeddings, Gemini organise → Phase 8.1) |
-| 10 | Public 1.0 (F-Droid + GitHub Releases) | ⬜ |
+| 10 | Public 1.0 (F-Droid + GitHub Releases) | ✅ (Phase 9 web slice: Settings + About with theme / a11y toggles, version 1.0.0-rc.1, zero-telemetry promise; real persistence + fastlane metadata + skin marketplace → Phase 9.1) |
 
 Detailed PR-by-PR plan: [PLAN.md §5](PLAN.md#5-phased-roadmap).
 

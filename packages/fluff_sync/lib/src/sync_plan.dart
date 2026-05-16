@@ -26,8 +26,7 @@ class SyncEntry {
       other.targetSize == targetSize;
 
   @override
-  int get hashCode =>
-      Object.hash(relativePath, action, sourceSize, targetSize);
+  int get hashCode => Object.hash(relativePath, action, sourceSize, targetSize);
 }
 
 /// A plan is an immutable list of entries plus pre-computed summary
@@ -37,8 +36,9 @@ class SyncPlan {
   SyncPlan(List<SyncEntry> entries)
     : entries = List.unmodifiable(entries),
       copyCount = entries.where((e) => e.action == SyncAction.copy).length,
-      replaceCount =
-          entries.where((e) => e.action == SyncAction.replace).length,
+      replaceCount = entries
+          .where((e) => e.action == SyncAction.replace)
+          .length,
       deleteCount = entries.where((e) => e.action == SyncAction.delete).length,
       skipCount = entries.where((e) => e.action == SyncAction.skip).length;
 
@@ -60,6 +60,5 @@ class SyncPlan {
   }
 
   bool get isEmpty => entries.isEmpty;
-  bool get hasChanges =>
-      copyCount > 0 || replaceCount > 0 || deleteCount > 0;
+  bool get hasChanges => copyCount > 0 || replaceCount > 0 || deleteCount > 0;
 }

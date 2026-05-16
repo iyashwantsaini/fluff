@@ -16,6 +16,7 @@ import 'src/nearby_screen.dart';
 import 'src/organise_screen.dart';
 import 'src/search_screen.dart';
 import 'src/servers_screen.dart';
+import 'src/settings_screen.dart';
 import 'src/sync_screen.dart';
 import 'src/vault_screen.dart';
 
@@ -24,7 +25,18 @@ void main() {
 }
 
 /// Top-level shell state: which mount is active.
-enum _Mount { storage, vault, remote, archive, servers, sync, nearby, search, organise }
+enum _Mount {
+  storage,
+  vault,
+  remote,
+  archive,
+  servers,
+  sync,
+  nearby,
+  search,
+  organise,
+  settings,
+}
 
 class FluffApp extends StatefulWidget {
   const FluffApp({super.key});
@@ -93,8 +105,8 @@ class _FluffAppState extends State<FluffApp> {
   late final SemanticIndex _index = SemanticIndex(seed: defaultSeedIndex());
 
   /// Phase 8 web slice: deterministic AI organise plan.
-  late final OrganisePlan _organise =
-      const OrganisePlanner().proposeForDownloads();
+  late final OrganisePlan _organise = const OrganisePlanner()
+      .proposeForDownloads();
 
   /// Phase 7 web slice: two seeded in-memory `FsProvider`s the
   /// sync engine can diff against. Lazily built in [_ensureSyncDemo].
@@ -156,6 +168,8 @@ class _FluffAppState extends State<FluffApp> {
         _initialQuery = q['q'];
       } else if (q['organise'] == '1') {
         _mount = _Mount.organise;
+      } else if (q['settings'] == '1') {
+        _mount = _Mount.settings;
       }
     }
   }
@@ -276,6 +290,7 @@ class _FluffAppState extends State<FluffApp> {
             tile(_Mount.nearby, Icons.wifi_tethering, 'Nearby'),
             tile(_Mount.search, Icons.search_rounded, 'Search'),
             tile(_Mount.organise, Icons.auto_awesome_rounded, 'AI organise'),
+            tile(_Mount.settings, Icons.settings_outlined, 'Settings'),
           ],
         ),
       ),
@@ -360,8 +375,7 @@ class _FluffAppState extends State<FluffApp> {
                       target: demo.target,
                       pair: demo.pair,
                       drawer: _drawer(context, _Mount.sync),
-                      onToggleBrightness: () =>
-                          _skin.toggleBrightness(context),
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
                     );
                   },
                 );
@@ -382,6 +396,12 @@ class _FluffAppState extends State<FluffApp> {
                 return OrganiseScreen(
                   plan: _organise,
                   drawer: _drawer(context, _Mount.organise),
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
+                );
+              case _Mount.settings:
+                return SettingsScreen(
+                  skin: _skin,
+                  drawer: _drawer(context, _Mount.settings),
                   onToggleBrightness: () => _skin.toggleBrightness(context),
                 );
             }

@@ -150,10 +150,7 @@ class _DeviceTile extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     '${device.kind.name} · ${device.address}',
-                    style: TextStyle(
-                      color: cs.onSurfaceVariant,
-                      fontSize: 12,
-                    ),
+                    style: TextStyle(color: cs.onSurfaceVariant, fontSize: 12),
                   ),
                 ],
               ),

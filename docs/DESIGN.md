@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phase 8 web slice** — intel: `fluff_intel` ships `OcrResult`, `SemanticIndex` (deterministic token rank), and `OrganisePlanner` producing a mocked AI rename / move diff. App adds Search and AI organise screens. Real ML Kit OCR + on-device embeddings (sqlite-vec) + Gemini-driven organise deferred to Phase 8.1. |
+| Current phase | **Phase 9 web slice** — Settings + About: 3-segment theme-mode selector (light / system / dark) wired into `SkinController`, accessibility toggles (large text / reduce motion / high contrast / haptic on long-press), and an About card pinning version `1.0.0-rc.1`, F-Droid stable channel, the source URL, and the standing zero-telemetry promise. Real persistence + F-Droid metadata file (`fastlane`) + screenshot bundle deferred to Phase 9.1. |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -79,6 +79,33 @@ Each pass of the **build-tier** skill appends an entry here with:
 - screenshots taken,
 - review findings,
 - fixes applied.
+
+### 2026-05-16 — Phase 9, first pass
+
+- **Scope**: Settings + About screen, no new package. The web
+  slice rounds the app out to a `1.0.0-rc.1` shape — every
+  Phase 1-8 mount is reachable from a single drawer, and the
+  Settings tile exposes the only globally meaningful preferences:
+  theme mode (wired live to `SkinController.setMode`),
+  accessibility toggles (large text / reduce motion / high
+  contrast / haptic on long-press, all backed by local state in
+  the web slice), and an About card pinning version, F-Droid
+  channel, source URL, and "Telemetry: None. Ever."
+- **Viewport**: same auto-detected `1233×1257`.
+- **Screenshots**: 2 new PNGs — `settings-{light,dark}.png`.
+- **Review**: section cards share the same
+  `surfaceContainerHighest` background as the rest of the app,
+  `_Section` headers use `cs.primary` for visual rhythm; switch
+  rows align cleanly on the trailing edge; About row labels keep
+  a fixed `120 px` lead column so values stay aligned. No
+  clipping, no asymmetric gutter.
+- **Deferred (9.1)**: real `shared_preferences` persistence for
+  every toggle, `MediaQuery.textScalerOf` actually scaling text,
+  `AnimatedSwitcher` + scroll physics honouring "reduce motion",
+  `Theme.of(context).copyWith(highContrast: true)` on the toggle,
+  Android haptics via `HapticFeedback.heavyImpact`, fastlane /
+  F-Droid metadata bundle (graphics, descriptions, changelog),
+  and the skin-pack marketplace UI scaffolding.
 
 ### 2026-05-16 — Phase 8, first pass
 

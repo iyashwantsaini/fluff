@@ -96,7 +96,8 @@ class _SearchScreenState extends State<SearchScreen> {
                     itemCount: _results.length,
                     separatorBuilder: (_, _) =>
                         SizedBox(height: tokens.spacing.sm),
-                    itemBuilder: (context, i) => _ResultTile(entry: _results[i]),
+                    itemBuilder: (context, i) =>
+                        _ResultTile(entry: _results[i]),
                   ),
           ),
         ],

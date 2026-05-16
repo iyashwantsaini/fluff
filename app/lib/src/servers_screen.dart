@@ -290,9 +290,9 @@ class _AddServerDialogState extends State<_AddServerDialog> {
       );
       Navigator.of(context).pop(s);
     } on ArgumentError catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(e.message.toString())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(e.message.toString())));
     }
   }
 
@@ -308,23 +308,14 @@ class _AddServerDialogState extends State<_AddServerDialog> {
           children: [
             SegmentedButton<ShareServerKind>(
               segments: const [
-                ButtonSegment(
-                  value: ShareServerKind.http,
-                  label: Text('HTTP'),
-                ),
+                ButtonSegment(value: ShareServerKind.http, label: Text('HTTP')),
                 ButtonSegment(
                   value: ShareServerKind.webdav,
                   label: Text('WebDAV'),
                 ),
                 ButtonSegment(value: ShareServerKind.ftp, label: Text('FTP')),
-                ButtonSegment(
-                  value: ShareServerKind.sftp,
-                  label: Text('SFTP'),
-                ),
-                ButtonSegment(
-                  value: ShareServerKind.dlna,
-                  label: Text('DLNA'),
-                ),
+                ButtonSegment(value: ShareServerKind.sftp, label: Text('SFTP')),
+                ButtonSegment(value: ShareServerKind.dlna, label: Text('DLNA')),
               ],
               selected: {_kind},
               onSelectionChanged: (set) => setState(() => _kind = set.first),
