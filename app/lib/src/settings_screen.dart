@@ -1,6 +1,8 @@
 import 'package:fluff_skin/fluff_skin.dart';
 import 'package:flutter/material.dart';
 
+import 'prefs.dart';
+
 /// Phase 9 web slice: Settings + About screen. Surfaces theme
 /// mode, accessibility toggles (mock), and release-channel info.
 class SettingsScreen extends StatefulWidget {
@@ -20,11 +22,10 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // Mock accessibility prefs (web slice — not persisted).
-  bool _largeText = false;
-  bool _reduceMotion = false;
-  bool _highContrast = false;
-  bool _hapticOnLongPress = true;
+  late bool _largeText = Prefs.instance.largeText;
+  late bool _reduceMotion = Prefs.instance.reduceMotion;
+  late bool _highContrast = Prefs.instance.highContrast;
+  late bool _hapticOnLongPress = Prefs.instance.hapticOnLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -58,28 +59,40 @@ class _SettingsScreenState extends State<SettingsScreen> {
             children: [
               SwitchListTile(
                 value: _largeText,
-                onChanged: (v) => setState(() => _largeText = v),
+                onChanged: (v) {
+                  setState(() => _largeText = v);
+                  Prefs.instance.setLargeText(v);
+                },
                 title: const Text('Large text'),
                 subtitle: const Text('Scale body copy to 125 %.'),
                 contentPadding: EdgeInsets.zero,
               ),
               SwitchListTile(
                 value: _reduceMotion,
-                onChanged: (v) => setState(() => _reduceMotion = v),
+                onChanged: (v) {
+                  setState(() => _reduceMotion = v);
+                  Prefs.instance.setReduceMotion(v);
+                },
                 title: const Text('Reduce motion'),
                 subtitle: const Text('Disable list-shuffle animations.'),
                 contentPadding: EdgeInsets.zero,
               ),
               SwitchListTile(
                 value: _highContrast,
-                onChanged: (v) => setState(() => _highContrast = v),
+                onChanged: (v) {
+                  setState(() => _highContrast = v);
+                  Prefs.instance.setHighContrast(v);
+                },
                 title: const Text('High contrast'),
                 subtitle: const Text('Bump outline + text contrast ratios.'),
                 contentPadding: EdgeInsets.zero,
               ),
               SwitchListTile(
                 value: _hapticOnLongPress,
-                onChanged: (v) => setState(() => _hapticOnLongPress = v),
+                onChanged: (v) {
+                  setState(() => _hapticOnLongPress = v);
+                  Prefs.instance.setHapticOnLongPress(v);
+                },
                 title: const Text('Haptic on long-press'),
                 subtitle: const Text('Vibrate when entering multi-select.'),
                 contentPadding: EdgeInsets.zero,

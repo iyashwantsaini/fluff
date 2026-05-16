@@ -14,6 +14,7 @@ import 'src/accounts_screen.dart';
 import 'src/browse_screen.dart';
 import 'src/nearby_screen.dart';
 import 'src/organise_screen.dart';
+import 'src/prefs.dart';
 import 'src/search_screen.dart';
 import 'src/servers_screen.dart';
 import 'src/settings_screen.dart';
@@ -21,7 +22,9 @@ import 'src/sync_screen.dart';
 import 'src/viewer_screen.dart';
 import 'src/vault_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Prefs.init();
   runApp(const FluffApp());
 }
 
@@ -50,7 +53,7 @@ class _FluffAppState extends State<FluffApp> {
   final SkinController _skin = SkinController(
     mode: Uri.base.queryParameters['dark'] == '1'
         ? ThemeMode.dark
-        : ThemeMode.system,
+        : Prefs.instance.themeMode,
   );
 
   late final FsProvider _fs = MemFsProvider.demo();
@@ -133,6 +136,7 @@ class _FluffAppState extends State<FluffApp> {
   @override
   void initState() {
     super.initState();
+    _skin.addListener(_persistTheme);
     if (kIsWeb) {
       final q = Uri.base.queryParameters;
       if ((q['vault'] ?? '').isNotEmpty) {
@@ -194,6 +198,7 @@ class _FluffAppState extends State<FluffApp> {
 
   @override
   void dispose() {
+    _skin.removeListener(_persistTheme);
     _skin.dispose();
     _queue.dispose();
     // ignore: discarded_futures
@@ -203,6 +208,11 @@ class _FluffAppState extends State<FluffApp> {
     // ignore: discarded_futures
     _nearby.dispose();
     super.dispose();
+  }
+
+  void _persistTheme() {
+    // ignore: discarded_futures
+    Prefs.instance.setThemeMode(_skin.mode);
   }
 
   Future<({MemFsProvider source, MemFsProvider target, SyncPair pair})>
@@ -317,115 +327,158 @@ class _FluffAppState extends State<FluffApp> {
 
   @override
   Widget build(BuildContext context) {
-    return SkinScope(
-      controller: _skin,
-      builder: (context, light, dark, mode) => MaterialApp(
-        title: 'Fluff',
-        debugShowCheckedModeBanner: false,
-        navigatorKey: _rootNavKey,
-        theme: light,
-        darkTheme: dark,
-        themeMode: mode,
-        home: Builder(
-          builder: (context) {
-            switch (_mount) {
-              case _Mount.storage:
-                return BrowseScreen(
-                  provider: _fs,
-                  queue: _queue,
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                  leadingDrawer: _drawer(context, _Mount.storage),
-                );
-              case _Mount.vault:
-                return VaultScreen(
-                  backing: _vaultBacking,
-                  queue: _queue,
-                  drawer: _drawer(context, _Mount.vault),
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                );
-              case _Mount.remote:
-                final rp = _remoteProvider;
-                if (rp == null) {
-                  return AccountsScreen(
-                    store: _accounts,
-                    drawer: _drawer(context, _Mount.remote),
-                    onToggleBrightness: () => _skin.toggleBrightness(context),
-                    onOpen: _openRemote,
-                  );
-                }
-                return BrowseScreen(
-                  provider: rp,
-                  queue: _queue,
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                  leadingDrawer: _drawer(context, _Mount.remote),
-                  appBarSuffix: IconButton(
-                    tooltip: 'Disconnect',
-                    icon: const Icon(Icons.logout_rounded),
-                    onPressed: () => setState(() => _remoteProvider = null),
-                  ),
-                );
-              case _Mount.archive:
-                return BrowseScreen(
-                  provider: _archive,
-                  queue: _queue,
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                  leadingDrawer: _drawer(context, _Mount.archive),
-                );
-              case _Mount.servers:
-                return ServersScreen(
-                  controller: _servers,
-                  drawer: _drawer(context, _Mount.servers),
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                );
-              case _Mount.sync:
-                return FutureBuilder<
-                  ({MemFsProvider source, MemFsProvider target, SyncPair pair})
-                >(
-                  future: _ensureSyncDemo(),
-                  builder: (context, snap) {
-                    if (!snap.hasData) {
-                      return const Scaffold(
-                        body: Center(child: CircularProgressIndicator()),
-                      );
-                    }
-                    final demo = snap.data!;
-                    return SyncScreen(
-                      source: demo.source,
-                      target: demo.target,
-                      pair: demo.pair,
-                      drawer: _drawer(context, _Mount.sync),
+    return AnimatedBuilder(
+      animation: Prefs.instance,
+      builder: (context, _) => SkinScope(
+        controller: _skin,
+        builder: (context, light, dark, mode) {
+          final prefs = Prefs.instance;
+          ThemeData builtTheme(ThemeData base) {
+            var t = base;
+            if (prefs.reduceMotion) {
+              t = t.copyWith(
+                pageTransitionsTheme: const PageTransitionsTheme(
+                  builders: {
+                    TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
+                    TargetPlatform.iOS: FadeUpwardsPageTransitionsBuilder(),
+                    TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
+                    TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
+                    TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
+                  },
+                ),
+              );
+            }
+            return t;
+          }
+
+          return MaterialApp(
+            title: 'Fluff',
+            debugShowCheckedModeBanner: false,
+            navigatorKey: _rootNavKey,
+            theme: builtTheme(light),
+            darkTheme: builtTheme(dark),
+            themeMode: mode,
+            builder: (ctx, child) {
+              final media = MediaQuery.of(ctx);
+              return MediaQuery(
+                data: media.copyWith(
+                  textScaler: prefs.largeText
+                      ? const TextScaler.linear(1.25)
+                      : media.textScaler,
+                  disableAnimations:
+                      media.disableAnimations || prefs.reduceMotion,
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            home: Builder(
+              builder: (context) {
+                switch (_mount) {
+                  case _Mount.storage:
+                    return BrowseScreen(
+                      provider: _fs,
+                      queue: _queue,
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                      leadingDrawer: _drawer(context, _Mount.storage),
+                    );
+                  case _Mount.vault:
+                    return VaultScreen(
+                      backing: _vaultBacking,
+                      queue: _queue,
+                      drawer: _drawer(context, _Mount.vault),
                       onToggleBrightness: () => _skin.toggleBrightness(context),
                     );
-                  },
-                );
-              case _Mount.nearby:
-                return NearbyScreen(
-                  discovery: _nearby,
-                  drawer: _drawer(context, _Mount.nearby),
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                );
-              case _Mount.search:
-                return SearchScreen(
-                  index: _index,
-                  initialQuery: _initialQuery,
-                  drawer: _drawer(context, _Mount.search),
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                );
-              case _Mount.organise:
-                return OrganiseScreen(
-                  plan: _organise,
-                  drawer: _drawer(context, _Mount.organise),
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                );
-              case _Mount.settings:
-                return SettingsScreen(
-                  skin: _skin,
-                  drawer: _drawer(context, _Mount.settings),
-                  onToggleBrightness: () => _skin.toggleBrightness(context),
-                );
-            }
-          },
-        ),
+                  case _Mount.remote:
+                    final rp = _remoteProvider;
+                    if (rp == null) {
+                      return AccountsScreen(
+                        store: _accounts,
+                        drawer: _drawer(context, _Mount.remote),
+                        onToggleBrightness: () =>
+                            _skin.toggleBrightness(context),
+                        onOpen: _openRemote,
+                      );
+                    }
+                    return BrowseScreen(
+                      provider: rp,
+                      queue: _queue,
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                      leadingDrawer: _drawer(context, _Mount.remote),
+                      appBarSuffix: IconButton(
+                        tooltip: 'Disconnect',
+                        icon: const Icon(Icons.logout_rounded),
+                        onPressed: () => setState(() => _remoteProvider = null),
+                      ),
+                    );
+                  case _Mount.archive:
+                    return BrowseScreen(
+                      provider: _archive,
+                      queue: _queue,
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                      leadingDrawer: _drawer(context, _Mount.archive),
+                    );
+                  case _Mount.servers:
+                    return ServersScreen(
+                      controller: _servers,
+                      drawer: _drawer(context, _Mount.servers),
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                    );
+                  case _Mount.sync:
+                    return FutureBuilder<
+                      ({
+                        MemFsProvider source,
+                        MemFsProvider target,
+                        SyncPair pair,
+                      })
+                    >(
+                      future: _ensureSyncDemo(),
+                      builder: (context, snap) {
+                        if (!snap.hasData) {
+                          return const Scaffold(
+                            body: Center(child: CircularProgressIndicator()),
+                          );
+                        }
+                        final demo = snap.data!;
+                        return SyncScreen(
+                          source: demo.source,
+                          target: demo.target,
+                          pair: demo.pair,
+                          drawer: _drawer(context, _Mount.sync),
+                          onToggleBrightness: () =>
+                              _skin.toggleBrightness(context),
+                        );
+                      },
+                    );
+                  case _Mount.nearby:
+                    return NearbyScreen(
+                      discovery: _nearby,
+                      drawer: _drawer(context, _Mount.nearby),
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                    );
+                  case _Mount.search:
+                    return SearchScreen(
+                      index: _index,
+                      initialQuery: _initialQuery,
+                      drawer: _drawer(context, _Mount.search),
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                    );
+                  case _Mount.organise:
+                    return OrganiseScreen(
+                      plan: _organise,
+                      drawer: _drawer(context, _Mount.organise),
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                    );
+                  case _Mount.settings:
+                    return SettingsScreen(
+                      skin: _skin,
+                      drawer: _drawer(context, _Mount.settings),
+                      onToggleBrightness: () => _skin.toggleBrightness(context),
+                    );
+                }
+              },
+            ),
+          );
+        },
       ),
     );
   }

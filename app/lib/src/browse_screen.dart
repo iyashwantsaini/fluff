@@ -238,6 +238,53 @@ class _BrowseScreenState extends State<BrowseScreen> {
     );
   }
 
+  Future<void> _renameDialog(FsPath p) async {
+    final ctrl = TextEditingController(text: p.name);
+    final newName = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Rename'),
+        content: SizedBox(
+          width: 360,
+          child: TextField(
+            controller: ctrl,
+            autofocus: true,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: 'New name',
+            ),
+            onSubmitted: (v) => Navigator.of(ctx).pop(v.trim()),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text.trim()),
+            child: const Text('Rename'),
+          ),
+        ],
+      ),
+    );
+    if (newName == null || newName.isEmpty || newName == p.name) return;
+    if (newName.contains('/') || newName.contains('\\')) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot contain "/" or "\\".')),
+      );
+      return;
+    }
+    widget.queue.enqueue(
+      kind: OperationKind.rename,
+      sources: [p],
+      providerId: widget.provider.id,
+      destination: p.parent.child(newName),
+    );
+    setState(_selected.clear);
+  }
+
   void _enqueueDelete() {
     if (_selected.isEmpty) return;
     widget.queue.enqueue(
@@ -756,6 +803,13 @@ class _BrowseScreenState extends State<BrowseScreen> {
             icon: const Icon(Icons.content_cut_rounded),
             tooltip: 'Cut',
             onPressed: () => _copyToClipboard(_ClipboardKind.cut),
+          ),
+          IconButton(
+            icon: const Icon(Icons.drive_file_rename_outline_rounded),
+            tooltip: 'Rename',
+            onPressed: _selected.length == 1
+                ? () => _renameDialog(_selected.first)
+                : null,
           ),
           IconButton(
             icon: const Icon(Icons.delete_outline_rounded),
