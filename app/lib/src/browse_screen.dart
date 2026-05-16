@@ -852,14 +852,51 @@ class _BrowseScreenState extends State<BrowseScreen> {
           icon: const Icon(Icons.more_vert_rounded),
           onSelected: _handleMenu,
           itemBuilder: (_) => [
-            const PopupMenuItem(value: 'new', child: Text('New folder')),
-            const PopupMenuItem(value: 'newfile', child: Text('New file…')),
-            const PopupMenuItem(value: 'refresh', child: Text('Refresh')),
+            PopupMenuItem(
+              value: 'new',
+              child: Row(
+                children: const [
+                  Icon(Icons.create_new_folder_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('New folder'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'newfile',
+              child: Row(
+                children: const [
+                  Icon(Icons.note_add_outlined, size: 18),
+                  SizedBox(width: 8),
+                  Text('New file…'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'refresh',
+              child: Row(
+                children: const [
+                  Icon(Icons.refresh_rounded, size: 18),
+                  SizedBox(width: 8),
+                  Text('Refresh'),
+                ],
+              ),
+            ),
             const PopupMenuDivider(),
-            CheckedPopupMenuItem(
+            PopupMenuItem(
               value: 'hidden',
-              checked: _showHidden,
-              child: const Text('Show hidden'),
+              child: Row(
+                children: [
+                  Icon(
+                    _showHidden
+                        ? Icons.visibility_rounded
+                        : Icons.visibility_off_outlined,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(_showHidden ? 'Hide hidden files' : 'Show hidden files'),
+                ],
+              ),
             ),
             const PopupMenuDivider(),
             PopupMenuItem(

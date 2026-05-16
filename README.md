@@ -1,11 +1,25 @@
+<div align="center">
+
+<img src="docs/branding/fluff-icon.png" alt="Fluff icon" width="128" height="128"/>
+
 # Fluff
 
-A modern, open-source file manager for Android — built entirely in
-[Flutter](https://flutter.dev) with the [wloom](https://github.com/iyashwantsaini/wloom)
-design system.
+**A modern, open-source file manager for Android — built entirely in pure [Flutter](https://flutter.dev) with the [wloom](https://github.com/iyashwantsaini/wloom) design system.**
 
-> **Status:** pre-alpha. Designing in the open. Code lands in small,
-> reviewable PRs against the plan in [PLAN.md](PLAN.md).
+[![CI](https://github.com/iyashwantsaini/fluff/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/iyashwantsaini/fluff/actions/workflows/ci.yml)
+[![Release](https://github.com/iyashwantsaini/fluff/actions/workflows/release.yml/badge.svg)](https://github.com/iyashwantsaini/fluff/actions/workflows/release.yml)
+[![Latest release](https://img.shields.io/github/v/release/iyashwantsaini/fluff?include_prereleases&sort=semver)](https://github.com/iyashwantsaini/fluff/releases)
+[![License](https://img.shields.io/github/license/iyashwantsaini/fluff)](LICENSE)
+[![Flutter](https://img.shields.io/badge/Flutter-stable-02569B?logo=flutter)](https://flutter.dev)
+[![Dart](https://img.shields.io/badge/Dart-3.11%2B-0175C2?logo=dart)](https://dart.dev)
+[![No telemetry](https://img.shields.io/badge/telemetry-none-success)](#how-the-vault-really-works)
+
+</div>
+
+> **Status:** active pre-1.0 development. Designing in the open. Code
+> lands in small, reviewable PRs against the plan in [PLAN.md](PLAN.md).
+> Signed APK + AAB are produced on every `v*.*.*` tag — see
+> [Releases](https://github.com/iyashwantsaini/fluff/releases).
 
 ---
 
@@ -266,16 +280,18 @@ run it any time via the `/build-tier` prompt.
 
 ## Building
 
-> Coming with Phase 1. The bullets below describe the **intended**
-> developer experience.
-
 ```powershell
-# Prereqs: Flutter stable, Android SDK + NDK, melos.
-git clone https://github.com/<you>/fluff.git
+# Prereqs: Flutter stable, Android SDK + NDK, melos, PowerShell 7+.
+git clone https://github.com/iyashwantsaini/fluff.git
 cd fluff
 dart pub global activate melos
 melos bootstrap
+
+# Run the web slice (used for design iteration + this repo's screenshots).
 cd app
+flutter run -d chrome --web-port=8765
+
+# Or run on a connected Android device.
 flutter run
 ```
 
@@ -283,7 +299,19 @@ Tests:
 
 ```powershell
 melos run test          # unit tests across all packages
-melos run integration   # device / emulator integration tests
+melos run integration   # device / emulator integration tests (Phase 2.1+)
+```
+
+Generate the app icon (deterministic, pure PowerShell + GDI+):
+
+```powershell
+pwsh scripts/gen-icon.ps1
+```
+
+Generate a release keystore once (interactive prompts for passwords):
+
+```powershell
+pwsh scripts/gen-keystore.ps1
 ```
 
 ---

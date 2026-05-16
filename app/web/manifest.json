@@ -1,11 +1,11 @@
 {
-    "name": "fluff",
-    "short_name": "fluff",
+    "name": "Fluff",
+    "short_name": "Fluff",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#4F378B",
+    "theme_color": "#6750A4",
+    "description": "A modern, open-source Android file manager built in pure Flutter.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [
