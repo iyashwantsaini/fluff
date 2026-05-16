@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:typed_data';
 
 import 'fs_capabilities.dart';
@@ -36,11 +37,27 @@ class MemFsProvider implements FsProvider {
   factory MemFsProvider.demo() {
     final p = MemFsProvider();
     final now = DateTime.now();
+    // 1x1 solid-red PNG (real, base64-decoded so the bytes are
+    // guaranteed valid) so the image viewer has something to show
+    // on the in-memory demo. Pure-Dart packages shouldn't ship
+    // image assets; a real device build pulls real previews from
+    // disk.
+    final redPng = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQ'
+      'DwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    );
+    // Tiny "fake" binary that's clearly not text — enough to fill
+    // the hex viewer with something to scroll through.
+    final apkLike = Uint8List.fromList(
+      List<int>.generate(512, (i) => (i * 37 + 13) & 0xFF),
+    );
     p
       .._mkdir('/Documents')
       .._mkdir('/Pictures')
       .._mkdir('/Downloads')
       .._mkdir('/Music')
+      .._mkdir('/Videos')
+      .._mkdir('/Books')
       .._mkdir('/Pictures/Screenshots')
       .._put(
         '/Documents/notes.txt',
@@ -57,12 +74,20 @@ class MemFsProvider implements FsProvider {
         '# Hello\n\nThis is a demo file inside MemFsProvider.',
         now,
       )
-      .._put('/Pictures/sunset.jpg', '', now)
-      .._put('/Pictures/portrait.png', '', now)
-      .._put('/Pictures/Screenshots/screen-01.png', '', now)
-      .._put('/Downloads/installer.apk', '', now)
-      .._put('/Music/track-01.flac', '', now)
-      .._put('/Music/track-02.flac', '', now);
+      .._put(
+        '/Documents/config.json',
+        '{\n  "theme": "auto",\n  "telemetry": false\n}\n',
+        now,
+      )
+      .._putBytes('/Pictures/sunset.jpg', redPng, now)
+      .._putBytes('/Pictures/portrait.png', redPng, now)
+      .._putBytes('/Pictures/Screenshots/screen-01.png', redPng, now)
+      .._putBytes('/Downloads/installer.apk', apkLike, now)
+      .._putBytes('/Music/track-01.flac', apkLike, now)
+      .._putBytes('/Music/track-02.flac', apkLike, now)
+      .._putBytes('/Videos/clip.mp4', apkLike, now)
+      .._putBytes('/Documents/manual.pdf', apkLike, now)
+      .._putBytes('/Books/novel.epub', apkLike, now);
     return p;
   }
 
@@ -73,6 +98,11 @@ class MemFsProvider implements FsProvider {
 
   void _put(String p, String content, DateTime mod) {
     _entries[p] = Uint8List.fromList(content.codeUnits);
+    _modified[p] = mod;
+  }
+
+  void _putBytes(String p, Uint8List bytes, DateTime mod) {
+    _entries[p] = bytes;
     _modified[p] = mod;
   }
 

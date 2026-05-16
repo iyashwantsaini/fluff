@@ -125,6 +125,11 @@ class _ImageView extends StatelessWidget {
         child: Image.memory(
           bytes,
           fit: BoxFit.contain,
+          // Nearest-neighbour so tiny demo PNGs scale up cleanly
+          // instead of vanishing into a single pixel.
+          filterQuality: FilterQuality.none,
+          width: 256,
+          height: 256,
           errorBuilder: (_, _, _) => const Text('Could not decode image bytes'),
         ),
       ),
@@ -234,7 +239,13 @@ class _UnsupportedView extends StatelessWidget {
             Icon(_icon, size: 72, color: cs.primary),
             SizedBox(height: tokens.spacing.md),
             Text(
-              '$kind preview lands in Phase 9.1',
+              switch (kind) {
+                'video' => 'Video preview lands in Phase 9.1',
+                'audio' => 'Audio playback lands in Phase 9.1',
+                'pdf' => 'PDF rendering lands in Phase 9.1',
+                'ebook' => 'Ebook rendering lands in Phase 9.1',
+                _ => 'Inline preview not available yet',
+              },
               style: Theme.of(context).textTheme.titleMedium,
             ),
             const SizedBox(height: 4),
