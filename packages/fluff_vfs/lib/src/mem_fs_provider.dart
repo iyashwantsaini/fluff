@@ -104,11 +104,11 @@ class MemFsProvider implements FsProvider {
       .._putBytes('/Pictures/Screenshots/screen-01.png', redPng, now)
       .._putBytes('/Downloads/installer.apk', _demoApkBytes(), now)
       .._putBytes('/Downloads/photos.zip', _demoZipBytes(), now)
-      .._putBytes('/Music/track-01.flac', apkLike, now)
+      .._putBytes('/Music/track-01.wav', _demoWavBytes(), now)
       .._putBytes('/Music/track-02.flac', apkLike, now)
       .._putBytes('/Videos/clip.mp4', apkLike, now)
-      .._putBytes('/Documents/manual.pdf', apkLike, now)
-      .._putBytes('/Books/novel.epub', apkLike, now);
+      .._putBytes('/Documents/manual.pdf', _demoPdfBytes(), now)
+      .._putBytes('/Books/novel.epub', _demoEpubBytes(), now);
     return p;
   }
 
@@ -143,7 +143,10 @@ class MemFsProvider implements FsProvider {
       'jpeg': 'image/jpeg',
       'webp': 'image/webp',
       'flac': 'audio/flac',
+      'wav': 'audio/wav',
       'mp3': 'audio/mpeg',
+      'mp4': 'video/mp4',
+      'epub': 'application/epub+zip',
       'apk': 'application/vnd.android.package-archive',
       'pdf': 'application/pdf',
     }[ext];
@@ -314,5 +317,152 @@ Uint8List _demoApkBytes() {
     ..addFile(
       ArchiveFile.string('META-INF/MANIFEST.MF', 'Manifest-Version: 1.0\n'),
     );
+  return Uint8List.fromList(ZipEncoder().encode(archive));
+}
+
+/// 2-second 8 kHz mono PCM WAV of silence. Just enough for the
+/// audio player to mount real controls and report a real duration.
+Uint8List _demoWavBytes() {
+  const sampleRate = 8000;
+  const seconds = 2;
+  const samples = sampleRate * seconds;
+  const dataSize = samples * 2; // 16-bit mono
+  final out = ByteData(44 + dataSize);
+  // RIFF header
+  out.setUint8(0, 0x52); // R
+  out.setUint8(1, 0x49); // I
+  out.setUint8(2, 0x46); // F
+  out.setUint8(3, 0x46); // F
+  out.setUint32(4, 36 + dataSize, Endian.little);
+  out.setUint8(8, 0x57); // W
+  out.setUint8(9, 0x41); // A
+  out.setUint8(10, 0x56); // V
+  out.setUint8(11, 0x45); // E
+  // fmt chunk
+  out.setUint8(12, 0x66); // f
+  out.setUint8(13, 0x6d); // m
+  out.setUint8(14, 0x74); // t
+  out.setUint8(15, 0x20); // ' '
+  out.setUint32(16, 16, Endian.little); // fmt chunk size
+  out.setUint16(20, 1, Endian.little); // PCM
+  out.setUint16(22, 1, Endian.little); // mono
+  out.setUint32(24, sampleRate, Endian.little);
+  out.setUint32(28, sampleRate * 2, Endian.little); // byte rate
+  out.setUint16(32, 2, Endian.little); // block align
+  out.setUint16(34, 16, Endian.little); // bits per sample
+  // data chunk
+  out.setUint8(36, 0x64); // d
+  out.setUint8(37, 0x61); // a
+  out.setUint8(38, 0x74); // t
+  out.setUint8(39, 0x61); // a
+  out.setUint32(40, dataSize, Endian.little);
+  // Samples already zero — pure silence.
+  return out.buffer.asUint8List();
+}
+
+/// Minimal valid PDF 1.4 with one page reading "Fluff PDF demo".
+/// Hand-rolled to keep the demo asset under a kilobyte.
+Uint8List _demoPdfBytes() {
+  final objects = <String>[
+    '<< /Type /Catalog /Pages 2 0 R >>',
+    '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+    '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] '
+        '/Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+    '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+  ];
+  const stream =
+      'BT /F1 24 Tf 72 720 Td (Fluff PDF demo) Tj '
+      '0 -36 Td /F1 14 Tf (Rendered by pdfx in the in-app viewer.) Tj ET';
+  objects.add('<< /Length ${stream.length} >>\nstream\n$stream\nendstream');
+  final buf = StringBuffer('%PDF-1.4\n%\u{00E2}\u{00E3}\u{00CF}\u{00D3}\n');
+  final offsets = <int>[];
+  for (var i = 0; i < objects.length; i++) {
+    offsets.add(buf.length);
+    buf.write('${i + 1} 0 obj\n${objects[i]}\nendobj\n');
+  }
+  final xrefOffset = buf.length;
+  buf.write('xref\n0 ${objects.length + 1}\n');
+  buf.write('0000000000 65535 f \n');
+  for (final o in offsets) {
+    buf.write('${o.toString().padLeft(10, '0')} 00000 n \n');
+  }
+  buf.write(
+    'trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\n'
+    'startxref\n$xrefOffset\n%%EOF\n',
+  );
+  return Uint8List.fromList(latin1.encode(buf.toString()));
+}
+
+/// Minimal valid EPUB 3 with one chapter. Built fresh with the
+/// `archive` package so the mimetype entry is the first STORED
+/// member, exactly as the spec requires.
+Uint8List _demoEpubBytes() {
+  Uint8List bytes(String s) => Uint8List.fromList(utf8.encode(s));
+  const container =
+      '<?xml version="1.0"?>\n'
+      '<container version="1.0" '
+      'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">\n'
+      '  <rootfiles>\n'
+      '    <rootfile full-path="OEBPS/content.opf" '
+      'media-type="application/oebps-package+xml"/>\n'
+      '  </rootfiles>\n'
+      '</container>\n';
+  const opf =
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      '<package xmlns="http://www.idpf.org/2007/opf" version="3.0" '
+      'unique-identifier="bookid">\n'
+      '  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/">\n'
+      '    <dc:identifier id="bookid">fluff-demo-001</dc:identifier>\n'
+      '    <dc:title>Fluff Demo Book</dc:title>\n'
+      '    <dc:language>en</dc:language>\n'
+      '  </metadata>\n'
+      '  <manifest>\n'
+      '    <item id="ch1" href="chapter1.xhtml" '
+      'media-type="application/xhtml+xml"/>\n'
+      '    <item id="ch2" href="chapter2.xhtml" '
+      'media-type="application/xhtml+xml"/>\n'
+      '  </manifest>\n'
+      '  <spine>\n'
+      '    <itemref idref="ch1"/>\n'
+      '    <itemref idref="ch2"/>\n'
+      '  </spine>\n'
+      '</package>\n';
+  const ch1 =
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      '<!DOCTYPE html>\n'
+      '<html xmlns="http://www.w3.org/1999/xhtml">\n'
+      '<head><title>Chapter 1</title></head>\n'
+      '<body>\n'
+      '  <h1>Chapter 1 &#8212; A Pure-Flutter Beginning</h1>\n'
+      '  <p>Once upon a build, a file manager named '
+      '<strong>Fluff</strong> rendered its very first EPUB without '
+      'a single line of platform code.</p>\n'
+      '  <p>It parsed the spine, hopped through the manifest, and '
+      'asked <em>flutter_html</em> to do the heavy lifting.</p>\n'
+      '  <p>Swipe right to keep reading.</p>\n'
+      '</body>\n'
+      '</html>\n';
+  const ch2 =
+      '<?xml version="1.0" encoding="UTF-8"?>\n'
+      '<!DOCTYPE html>\n'
+      '<html xmlns="http://www.w3.org/1999/xhtml">\n'
+      '<head><title>Chapter 2</title></head>\n'
+      '<body>\n'
+      '  <h1>Chapter 2 &#8212; The Chapter Bar</h1>\n'
+      '  <p>The bottom chevrons let you hop between chapters; the '
+      'counter shows where you stand.</p>\n'
+      '  <p>That is the whole demo. The rest of the format &#8212; '
+      'cover art, CSS stylesheets, embedded fonts &#8212; is '
+      'on the Phase 1.x roadmap.</p>\n'
+      '</body>\n'
+      '</html>\n';
+  final mime = ArchiveFile.bytes('mimetype', bytes('application/epub+zip'))
+    ..compression = CompressionType.none;
+  final archive = Archive()
+    ..addFile(mime)
+    ..addFile(ArchiveFile.bytes('META-INF/container.xml', bytes(container)))
+    ..addFile(ArchiveFile.bytes('OEBPS/content.opf', bytes(opf)))
+    ..addFile(ArchiveFile.bytes('OEBPS/chapter1.xhtml', bytes(ch1)))
+    ..addFile(ArchiveFile.bytes('OEBPS/chapter2.xhtml', bytes(ch2)));
   return Uint8List.fromList(ZipEncoder().encode(archive));
 }
