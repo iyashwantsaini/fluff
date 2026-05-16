@@ -1,0 +1,21 @@
+name: fluff
+repository: https://github.com/iyashwantsaini/fluff
+
+packages:
+  - app
+  - packages/*
+
+command:
+  bootstrap:
+    runPubGetInParallel: true
+
+scripts:
+  analyze:
+    description: dart analyze across all packages
+    run: melos exec -- "dart analyze ."
+  test:
+    description: run tests for every package
+    run: melos exec --dir-exists=test -- "flutter test"
+  format:
+    description: dart format --set-exit-if-changed across all packages
+    run: melos exec -- "dart format --set-exit-if-changed ."

@@ -1,0 +1,25 @@
+name: fluff
+description: "Fluff — a pure-Flutter Android file manager."
+publish_to: 'none'
+version: 0.0.1+1
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  fluff_vfs:
+    path: ../packages/fluff_vfs
+  fluff_skin:
+    path: ../packages/fluff_skin
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
