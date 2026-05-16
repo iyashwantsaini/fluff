@@ -13,9 +13,11 @@ import 'viewer_screen.dart';
 
 enum _ClipboardKind { copy, cut }
 
-enum _SortKey { name, size, modified }
+enum _SortKey { name, size, modified, type }
 
-enum _ViewMode { list, grid }
+enum _ViewMode { list, grid, gallery, details }
+
+enum _FilterKind { all, folders, images, audio, video, docs, archives }
 
 class _Clipboard {
   final _ClipboardKind kind;
@@ -69,6 +71,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
   bool _sortAsc = true;
   _ViewMode _viewMode = _ViewMode.list;
   bool _showHidden = false;
+  _FilterKind _filter = _FilterKind.all;
 
   bool _searching = false;
   String _query = '';
@@ -285,38 +288,136 @@ class _BrowseScreenState extends State<BrowseScreen> {
     );
   }
 
-  Future<void> _newFolder() async {
-    final ctrl = TextEditingController(text: 'New folder');
-    final name = await showDialog<String>(
+  Future<void> _newFolder() => _createDialog(initialIsFolder: true);
+
+  Future<void> _createDialog({required bool initialIsFolder}) async {
+    var isFolder = initialIsFolder;
+    final nameCtrl = TextEditingController(
+      text: isFolder ? 'New folder' : 'untitled',
+    );
+    String ext = 'txt';
+    const exts = <String>[
+      'txt',
+      'md',
+      'json',
+      'yaml',
+      'xml',
+      'csv',
+      'log',
+      'sh',
+      'ps1',
+      'dart',
+      'kt',
+      'py',
+      'js',
+      'ts',
+      'html',
+      'css',
+    ];
+    final created = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('New folder'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Folder name'),
-          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setLocal) => AlertDialog(
+          title: const Text('Create new'),
+          content: SizedBox(
+            width: 360,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                SegmentedButton<bool>(
+                  segments: const [
+                    ButtonSegment(
+                      value: true,
+                      label: Text('Folder'),
+                      icon: Icon(Icons.create_new_folder_outlined),
+                    ),
+                    ButtonSegment(
+                      value: false,
+                      label: Text('File'),
+                      icon: Icon(Icons.note_add_outlined),
+                    ),
+                  ],
+                  selected: {isFolder},
+                  onSelectionChanged: (s) => setLocal(() {
+                    isFolder = s.first;
+                    nameCtrl.text = isFolder ? 'New folder' : 'untitled';
+                  }),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        controller: nameCtrl,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          labelText: isFolder ? 'Folder name' : 'File name',
+                          isDense: true,
+                          border: const OutlineInputBorder(),
+                        ),
+                      ),
+                    ),
+                    if (!isFolder) ...[
+                      const SizedBox(width: 8),
+                      const Text('.'),
+                      const SizedBox(width: 4),
+                      DropdownButton<String>(
+                        value: ext,
+                        items: [
+                          for (final e in exts)
+                            DropdownMenuItem(value: e, child: Text(e)),
+                        ],
+                        onChanged: (v) => setLocal(() => ext = v ?? 'txt'),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                final raw = nameCtrl.text.trim();
+                if (raw.isEmpty) {
+                  Navigator.of(ctx).pop(false);
+                  return;
+                }
+                final fullName = isFolder ? raw : '$raw.$ext';
+                final target = _cwd.child(fullName);
+                try {
+                  if (isFolder) {
+                    await widget.provider.mkdir(target);
+                  } else {
+                    await widget.provider.writeBytes(target, Uint8List(0));
+                  }
+                  if (ctx.mounted) Navigator.of(ctx).pop(true);
+                } catch (e) {
+                  if (ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      SnackBar(content: Text('Could not create: $e')),
+                    );
+                  }
+                }
+              },
+              child: const Text('Create'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
-            child: const Text('Create'),
-          ),
-        ],
       ),
     );
-    if (name == null || name.trim().isEmpty) return;
-    await widget.provider.mkdir(_cwd.child(name.trim()));
-    _refresh();
+    if (created == true) _refresh();
   }
 
   List<FsNode> _applyViewPrefs(List<FsNode> input) {
     final filtered = input.where((n) => _showHidden || !n.name.startsWith('.'));
-    final searched = filtered.where(
+    final kindFiltered = filtered.where((n) => _matchesFilter(n));
+    final searched = kindFiltered.where(
       (n) =>
           _query.isEmpty || n.name.toLowerCase().contains(_query.toLowerCase()),
     );
@@ -333,10 +434,72 @@ class _BrowseScreenState extends State<BrowseScreen> {
             (a.modified ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
               b.modified ?? DateTime.fromMillisecondsSinceEpoch(0),
             ),
+          _SortKey.type => _extOf(a.name).compareTo(_extOf(b.name)),
         };
         return _sortAsc ? cmp : -cmp;
       });
     return list;
+  }
+
+  static String _extOf(String name) {
+    final i = name.lastIndexOf('.');
+    return i < 0 ? '' : name.substring(i + 1).toLowerCase();
+  }
+
+  bool _matchesFilter(FsNode n) {
+    if (_filter == _FilterKind.all) return true;
+    if (n.isDirectory) return _filter == _FilterKind.folders;
+    final ext = _extOf(n.name);
+    return switch (_filter) {
+      _FilterKind.images => {
+        'jpg',
+        'jpeg',
+        'png',
+        'gif',
+        'webp',
+        'bmp',
+        'svg',
+        'heic',
+      }.contains(ext),
+      _FilterKind.audio => {
+        'mp3',
+        'flac',
+        'ogg',
+        'wav',
+        'm4a',
+        'opus',
+        'aac',
+      }.contains(ext),
+      _FilterKind.video => {
+        'mp4',
+        'mkv',
+        'webm',
+        'mov',
+        'avi',
+        '3gp',
+      }.contains(ext),
+      _FilterKind.docs => {
+        'pdf',
+        'epub',
+        'md',
+        'markdown',
+        'txt',
+        'doc',
+        'docx',
+        'odt',
+      }.contains(ext),
+      _FilterKind.archives => {
+        'zip',
+        'tar',
+        'gz',
+        '7z',
+        'rar',
+        'apk',
+        'jar',
+        'aar',
+      }.contains(ext),
+      _ => true,
+    };
   }
 
   @override
@@ -358,6 +521,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
           if (!_searching && !hasSelection)
             _PathBreadcrumbs(path: _cwd, onTap: _navigate, gutter: gutter),
           if (_searching) _searchBar(theme, tokens, gutter),
+          if (!hasSelection) _filterChips(theme, tokens, gutter),
           if (hasClipboard && !hasSelection && !_searching)
             _clipboardBanner(theme, tokens, gutter),
           const Divider(height: 1),
@@ -430,6 +594,59 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     itemBuilder: (_, i) => tile(i),
                   );
                 }
+                if (_viewMode == _ViewMode.gallery) {
+                  final width = MediaQuery.of(context).size.width;
+                  final crossAxisCount = (width / 140).floor().clamp(2, 8);
+                  return GridView.builder(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: gutter,
+                      vertical: tokens.spacing.sm,
+                    ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: tokens.spacing.sm,
+                      mainAxisSpacing: tokens.spacing.sm,
+                      childAspectRatio: 0.9,
+                    ),
+                    itemCount: items.length,
+                    itemBuilder: (_, i) {
+                      final n = items[i];
+                      final isSelected = _selected.contains(n.path);
+                      return _GalleryTile(
+                        node: n,
+                        selected: isSelected,
+                        onTap: () {
+                          if (hasSelection) {
+                            _toggleSelect(n.path);
+                          } else if (n.isDirectory) {
+                            _navigate(n.path);
+                          } else {
+                            _openFile(n);
+                          }
+                        },
+                        onLongPress: () => _toggleSelect(n.path),
+                      );
+                    },
+                  );
+                }
+                if (_viewMode == _ViewMode.details) {
+                  return _DetailsTable(
+                    items: items,
+                    selected: _selected,
+                    selectionActive: hasSelection,
+                    onTap: (n) {
+                      if (hasSelection) {
+                        _toggleSelect(n.path);
+                      } else if (n.isDirectory) {
+                        _navigate(n.path);
+                      } else {
+                        _openFile(n);
+                      }
+                    },
+                    onLongPress: (n) => _toggleSelect(n.path),
+                    onProperties: _showProperties,
+                  );
+                }
                 return ListView.separated(
                   padding: EdgeInsets.symmetric(
                     horizontal: gutter,
@@ -470,6 +687,8 @@ class _BrowseScreenState extends State<BrowseScreen> {
     switch (value) {
       case 'new':
         _newFolder();
+      case 'newfile':
+        _createDialog(initialIsFolder: false);
       case 'refresh':
         _refresh();
       case 'hidden':
@@ -499,6 +718,15 @@ class _BrowseScreenState extends State<BrowseScreen> {
           } else {
             _sortKey = _SortKey.modified;
             _sortAsc = false;
+          }
+        });
+      case 'sort-type':
+        setState(() {
+          if (_sortKey == _SortKey.type) {
+            _sortAsc = !_sortAsc;
+          } else {
+            _sortKey = _SortKey.type;
+            _sortAsc = true;
           }
         });
     }
@@ -574,18 +802,50 @@ class _BrowseScreenState extends State<BrowseScreen> {
             }
           }),
         ),
-        IconButton(
-          tooltip: _viewMode == _ViewMode.list ? 'Grid view' : 'List view',
-          icon: Icon(
-            _viewMode == _ViewMode.list
-                ? Icons.grid_view_rounded
-                : Icons.view_list_rounded,
-          ),
-          onPressed: () => setState(
-            () => _viewMode = _viewMode == _ViewMode.list
-                ? _ViewMode.grid
-                : _ViewMode.list,
-          ),
+        PopupMenuButton<_ViewMode>(
+          tooltip: 'View mode',
+          initialValue: _viewMode,
+          icon: Icon(switch (_viewMode) {
+            _ViewMode.list => Icons.view_list_rounded,
+            _ViewMode.grid => Icons.grid_view_rounded,
+            _ViewMode.gallery => Icons.photo_library_outlined,
+            _ViewMode.details => Icons.table_rows_rounded,
+          }),
+          onSelected: (m) => setState(() => _viewMode = m),
+          itemBuilder: (_) => const [
+            PopupMenuItem(
+              value: _ViewMode.list,
+              child: ListTile(
+                leading: Icon(Icons.view_list_rounded),
+                title: Text('List'),
+                dense: true,
+              ),
+            ),
+            PopupMenuItem(
+              value: _ViewMode.grid,
+              child: ListTile(
+                leading: Icon(Icons.grid_view_rounded),
+                title: Text('Grid'),
+                dense: true,
+              ),
+            ),
+            PopupMenuItem(
+              value: _ViewMode.gallery,
+              child: ListTile(
+                leading: Icon(Icons.photo_library_outlined),
+                title: Text('Gallery'),
+                dense: true,
+              ),
+            ),
+            PopupMenuItem(
+              value: _ViewMode.details,
+              child: ListTile(
+                leading: Icon(Icons.table_rows_rounded),
+                title: Text('Details'),
+                dense: true,
+              ),
+            ),
+          ],
         ),
         PopupMenuButton<String>(
           tooltip: 'More',
@@ -593,6 +853,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
           onSelected: _handleMenu,
           itemBuilder: (_) => [
             const PopupMenuItem(value: 'new', child: Text('New folder')),
+            const PopupMenuItem(value: 'newfile', child: Text('New file…')),
             const PopupMenuItem(value: 'refresh', child: Text('Refresh')),
             const PopupMenuDivider(),
             CheckedPopupMenuItem(
@@ -649,6 +910,23 @@ class _BrowseScreenState extends State<BrowseScreen> {
                   ),
                   const SizedBox(width: 8),
                   const Text('Sort by modified'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'sort-type',
+              child: Row(
+                children: [
+                  Icon(
+                    _sortKey == _SortKey.type
+                        ? (_sortAsc
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded)
+                        : Icons.category_outlined,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Sort by type'),
                 ],
               ),
             ),
@@ -720,6 +998,39 @@ class _BrowseScreenState extends State<BrowseScreen> {
             onPressed: () => setState(() => _clipboard = null),
             child: const Text('Cancel'),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _filterChips(ThemeData theme, WlmTokens tokens, double gutter) {
+    const all = <(_FilterKind, String, IconData)>[
+      (_FilterKind.all, 'All', Icons.apps_rounded),
+      (_FilterKind.folders, 'Folders', Icons.folder_outlined),
+      (_FilterKind.images, 'Images', Icons.image_outlined),
+      (_FilterKind.audio, 'Audio', Icons.music_note_outlined),
+      (_FilterKind.video, 'Video', Icons.movie_outlined),
+      (_FilterKind.docs, 'Docs', Icons.description_outlined),
+      (_FilterKind.archives, 'Archives', Icons.folder_zip_outlined),
+    ];
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: EdgeInsets.symmetric(
+        horizontal: gutter,
+        vertical: tokens.spacing.xs,
+      ),
+      child: Row(
+        children: [
+          for (final (kind, label, icon) in all) ...[
+            ChoiceChip(
+              avatar: Icon(icon, size: 16),
+              label: Text(label),
+              selected: _filter == kind,
+              onSelected: (_) => setState(() => _filter = kind),
+              visualDensity: VisualDensity.compact,
+            ),
+            SizedBox(width: tokens.spacing.xs),
+          ],
         ],
       ),
     );
@@ -948,6 +1259,191 @@ class _FsNodeTile extends StatelessWidget {
                   Icons.chevron_right_rounded,
                   color: scheme.outline,
                   size: 20,
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _GalleryTile extends StatelessWidget {
+  final FsNode node;
+  final bool selected;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _GalleryTile({
+    required this.node,
+    required this.selected,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  IconData get _icon {
+    if (node.isDirectory) return Icons.folder_rounded;
+    final ext = node.name.contains('.')
+        ? node.name.split('.').last.toLowerCase()
+        : '';
+    if ({'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg'}.contains(ext)) {
+      return Icons.image_rounded;
+    }
+    if ({'mp4', 'mkv', 'webm', 'mov'}.contains(ext)) return Icons.movie_rounded;
+    if ({'mp3', 'flac', 'ogg', 'wav', 'm4a'}.contains(ext)) {
+      return Icons.music_note_rounded;
+    }
+    if (ext == 'pdf') return Icons.picture_as_pdf_rounded;
+    if ({'apk', 'zip', 'jar'}.contains(ext)) return Icons.folder_zip_rounded;
+    return Icons.insert_drive_file_rounded;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    final tokens = WlmTheme.of(context).tokens;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        borderRadius: BorderRadius.circular(tokens.radius.md),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: selected ? cs.primary : cs.outlineVariant,
+              width: selected ? 1.5 : 1,
+            ),
+            borderRadius: BorderRadius.circular(tokens.radius.md),
+            color: selected
+                ? cs.primaryContainer.withValues(alpha: 0.35)
+                : cs.surfaceContainerLow,
+          ),
+          padding: EdgeInsets.all(tokens.spacing.sm),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: Container(
+                  alignment: Alignment.center,
+                  decoration: BoxDecoration(
+                    color: cs.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(tokens.radius.sm),
+                  ),
+                  child: Icon(_icon, size: 44, color: cs.onSurfaceVariant),
+                ),
+              ),
+              SizedBox(height: tokens.spacing.xs),
+              Text(
+                node.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: theme.textTheme.labelSmall,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DetailsTable extends StatelessWidget {
+  final List<FsNode> items;
+  final Set<FsPath> selected;
+  final bool selectionActive;
+  final ValueChanged<FsNode> onTap;
+  final ValueChanged<FsNode> onLongPress;
+  final ValueChanged<FsPath> onProperties;
+
+  const _DetailsTable({
+    required this.items,
+    required this.selected,
+    required this.selectionActive,
+    required this.onTap,
+    required this.onLongPress,
+    required this.onProperties,
+  });
+
+  String _kb(int b) {
+    if (b < 1024) return '$b B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
+    return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  String _date(DateTime? d) {
+    if (d == null) return '—';
+    return '${d.year}-${d.month.toString().padLeft(2, '0')}-'
+        '${d.day.toString().padLeft(2, '0')}';
+  }
+
+  String _type(FsNode n) {
+    if (n.isDirectory) return 'folder';
+    final i = n.name.lastIndexOf('.');
+    return i < 0 ? 'file' : n.name.substring(i + 1).toLowerCase();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
+    return Scrollbar(
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.sizeOf(context).width,
+          ),
+          child: DataTable(
+            headingTextStyle: theme.textTheme.labelMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              color: cs.onSurfaceVariant,
+            ),
+            dataRowMinHeight: 36,
+            dataRowMaxHeight: 44,
+            showCheckboxColumn: false,
+            columns: const [
+              DataColumn(label: Text('Name')),
+              DataColumn(label: Text('Type')),
+              DataColumn(label: Text('Size'), numeric: true),
+              DataColumn(label: Text('Modified')),
+              DataColumn(label: Text('')),
+            ],
+            rows: [
+              for (final n in items)
+                DataRow(
+                  selected: selected.contains(n.path),
+                  onSelectChanged: (_) => onTap(n),
+                  cells: [
+                    DataCell(
+                      Row(
+                        children: [
+                          Icon(
+                            n.isDirectory
+                                ? Icons.folder_outlined
+                                : Icons.insert_drive_file_outlined,
+                            size: 16,
+                            color: cs.onSurfaceVariant,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(n.name),
+                        ],
+                      ),
+                      onLongPress: () => onLongPress(n),
+                    ),
+                    DataCell(Text(_type(n))),
+                    DataCell(Text(n.isDirectory ? '—' : _kb(n.size))),
+                    DataCell(Text(_date(n.modified))),
+                    DataCell(
+                      IconButton(
+                        icon: const Icon(Icons.info_outline_rounded, size: 18),
+                        tooltip: 'Properties',
+                        onPressed: () => onProperties(n.path),
+                      ),
+                    ),
+                  ],
                 ),
             ],
           ),

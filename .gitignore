@@ -17,6 +17,9 @@ pubspec.lock
 **/android/key.properties
 *.jks
 *.keystore
+keystore-base64.txt
+keystore-secrets.txt
+fingerprint.txt
 
 # iOS / macOS
 **/ios/Pods/

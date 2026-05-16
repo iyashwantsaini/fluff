@@ -119,6 +119,135 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 
 Detailed PR-by-PR plan: [PLAN.md §5](PLAN.md#5-phased-roadmap).
 
+### Remaining work after the v0.1 web slice
+
+The phase table above shows the web-slice progress. The Android-only and
+hardware-bound features tracked for `0.2`+ releases are:
+
+- **2.1** — `flutter_foreground_task` runner + journalled resume for
+  copy / move / hash so closing a screen never aborts work.
+- **3.1** — biometric unlock via Android Keystore, `FLAG_SECURE` while
+  vault is open, "Move to vault" SAF intent, anti-screenshot toggle.
+- **4.1** — real `smb_connect` + `dartssh2` providers, WebDAV/FTP/HTTP
+  Auth, credential vault entries, foreground transfer queue.
+- **5.1** — `fluff_ffi` + bundled `libarchive` for 7z / RAR-read / zstd
+  read + write, multi-volume splits.
+- **6** — `fluff_documents_provider` shim plugin (publish Fluff vaults
+  and remotes to Android's system document picker).
+- **6.1** — embedded `shelf` HTTP / WebDAV / FTP / SFTP / SMB / DLNA
+  servers, Quick Settings tiles, homescreen widgets, boot auto-start.
+- **7.1** — real mDNS + TLS Wi-Fi Direct nearby transfer, resumable
+  uploads, scheduling, encrypted share-link generation with QR.
+- **8.1** — ML Kit OCR, on-device embedding model, Gemini "organise"
+  with reviewable diff.
+- **9.1** — native viewers for video (`video_player`), audio
+  (`just_audio`), PDF (`pdfx`), EPUB / MOBI (`epub_view`).
+- **9.2** — Share intent (`share_plus`), `Intent.ACTION_INSTALL_PACKAGE`
+  for APKs, "Open with…" chooser, file-association registration.
+- **10** — skin marketplace, F-Droid metadata, fastlane, real
+  `shared_preferences` settings persistence.
+
+---
+
+## How the vault really works
+
+The user-facing question matters: **if someone else picks up your phone,
+or you uninstall Fluff, what happens to vaulted files?**
+
+- The vault is a single opaque container on disk. Other apps (and
+  `adb pull`) see only ciphertext — file names, sizes, mtimes are
+  encrypted inside the tree blob. No part of the plaintext name ever
+  hits the filesystem.
+- Each file is split into 64 KiB chunks; each chunk is sealed with
+  **XChaCha20-Poly1305**. The master key is wrapped by a key derived
+  from your passphrase via **Argon2id** (memory-hard, side-channel
+  resistant). Brute-forcing the container without the passphrase is the
+  cost of Argon2id × number of guesses.
+- **If you clear app data, the vault container is deleted** — by default
+  it lives in Fluff's private storage (`/data/data/dev.fluff/...`),
+  which Android wipes on "Clear data" / uninstall. **If that is not
+  what you want**, point the vault at a path you control (SAF folder,
+  SD card, USB-OTG) when you create it; that container survives Fluff
+  being uninstalled, and any device with Fluff installed can open it
+  with the right passphrase.
+- Auto-lock fires on background, screen-off, or process death. While
+  unlocked, the activity sets `FLAG_SECURE` (Phase 3.1) so the vault
+  doesn't appear in the recents thumbnail and screen-recording APIs.
+- The vault format is specified in
+  [PLAN.md §6](PLAN.md#6-vault--on-the-fly-encryption). It is intended
+  to remain readable by any third-party implementation.
+
+---
+
+## Releases & CI
+
+CI lives in [.github/workflows/](.github/workflows/) and has zero
+third-party runners — everything runs on the GitHub-hosted `windows`
+and `ubuntu` images.
+
+- **`ci.yml`** runs on every push and PR. It boots Flutter stable,
+  bootstraps the melos workspace, runs `dart format --set-exit-if-changed`,
+  `dart analyze`, every package's tests, and uploads a `web` build as an
+  artifact so reviewers can click through the UI without a checkout.
+- **`release.yml`** runs on a `v*.*.*` tag push. It builds the web
+  bundle, a per-ABI split APK, and an AAB; signs both Android artifacts
+  with the production keystore; bundles a checksums file; and creates a
+  GitHub Release with all of it attached.
+
+### Signing
+
+A release keystore is generated once and never committed. Generate
+yours with [`scripts/gen-keystore.ps1`](scripts/gen-keystore.ps1), which
+prints the base64-encoded keystore to stdout. The four secrets the
+release workflow consumes are:
+
+| Secret | Description |
+| ------ | ----------- |
+| `KEYSTORE_BASE64` | Base64 of `release.jks` (entire file). |
+| `KEYSTORE_PASSWORD` | Keystore store password. |
+| `KEY_ALIAS` | Key alias inside the keystore (default `fluff-release`). |
+| `KEY_PASSWORD` | Per-key password (commonly = `KEYSTORE_PASSWORD`). |
+
+Upload them via `gh secret set <name>` or the repo Settings UI. The
+workflow drops the decoded keystore into a temp file at runtime and
+references it from `app/android/key.properties`.
+
+The production release-signing fingerprint is:
+
+```
+SHA-256: B4:58:64:4E:4C:E6:64:5F:EC:12:DA:13:79:9D:14:49:69:29:20:51:64:26:F9:63:71:C7:C1:D2:A5:76:80:1A
+```
+
+### Cutting a release
+
+```powershell
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+That triggers `release.yml`. When it finishes, the signed APK + AAB +
+web bundle + checksums show up on the
+[Releases page](https://github.com/iyashwantsaini/fluff/releases).
+
+---
+
+## Tech stack
+
+| Layer | Technology |
+| ----- | ---------- |
+| Language | Dart 3.11+, Flutter stable channel |
+| Monorepo | [melos](https://melos.invertase.dev) |
+| UI / design system | [wloom](https://github.com/iyashwantsaini/wloom) (`wolwoloom`) |
+| Storage abstraction | `FsProvider` (in `fluff_vfs`) |
+| Crypto | `cryptography` (XChaCha20-Poly1305 + Argon2id) |
+| Archives | `archive` (zip/tar/gz, APK inspection); `libarchive` via FFI in Phase 5.1 |
+| Markdown / SVG / images | `flutter_markdown`, `flutter_svg`, built-in `Image.memory` |
+| Long-running ops | `flutter_foreground_task` (Phase 2.1) |
+| Networking | `dartssh2`, `smb_connect`, `shelf` (planned in 4.1 / 6.1) |
+| Testing | `test`, `glados` (property tests for `fluff_vault`) |
+| Native shims | published as separate pub.dev plugins under `packages/fluff_native_shims/` (no inline Kotlin in `app/`) |
+| Telemetry | **none.** Not opt-in. Not opt-out. Not for crashes. |
+
 ---
 
 ## Screenshots

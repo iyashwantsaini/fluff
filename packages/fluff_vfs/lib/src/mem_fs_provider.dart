@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
+
 import 'fs_capabilities.dart';
 import 'fs_node.dart';
 import 'fs_path.dart';
@@ -71,7 +73,25 @@ class MemFsProvider implements FsProvider {
       )
       .._put(
         '/Documents/README.md',
-        '# Hello\n\nThis is a demo file inside MemFsProvider.',
+        '# Fluff demo\n\n'
+            'This is a **markdown** file rendered by the in-app viewer.\n\n'
+            '## Features\n\n'
+            '- Pure-Flutter file manager\n'
+            '- Native viewers for images, text, markdown, SVG\n'
+            '- APK inspector with manifest + dex stats\n'
+            '- Encrypted vault (XChaCha20-Poly1305 + Argon2id)\n\n'
+            '> No telemetry. Ever.\n\n'
+            'See `notes.txt` for plain-text rendering.\n',
+        now,
+      )
+      .._put(
+        '/Pictures/logo.svg',
+        '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
+            '<rect width="120" height="120" rx="16" fill="#6750A4"/>'
+            '<circle cx="60" cy="60" r="32" fill="#EADDFF"/>'
+            '<text x="60" y="70" font-family="sans-serif" font-size="28" '
+            'font-weight="700" text-anchor="middle" fill="#21005D">Fl</text>'
+            '</svg>',
         now,
       )
       .._put(
@@ -82,7 +102,8 @@ class MemFsProvider implements FsProvider {
       .._putBytes('/Pictures/sunset.jpg', redPng, now)
       .._putBytes('/Pictures/portrait.png', redPng, now)
       .._putBytes('/Pictures/Screenshots/screen-01.png', redPng, now)
-      .._putBytes('/Downloads/installer.apk', apkLike, now)
+      .._putBytes('/Downloads/installer.apk', _demoApkBytes(), now)
+      .._putBytes('/Downloads/photos.zip', _demoZipBytes(), now)
       .._putBytes('/Music/track-01.flac', apkLike, now)
       .._putBytes('/Music/track-02.flac', apkLike, now)
       .._putBytes('/Videos/clip.mp4', apkLike, now)
@@ -236,4 +257,62 @@ class MemFsProvider implements FsProvider {
       _modified[path.toString()] = DateTime.now();
     }
   }
+}
+
+Uint8List _demoZipBytes() {
+  final archive = Archive()
+    ..addFile(
+      ArchiveFile.string(
+        'photo-01.jpg.txt',
+        'Placeholder for photo-01.jpg in demo ZIP.\n',
+      ),
+    )
+    ..addFile(
+      ArchiveFile.string(
+        'photo-02.jpg.txt',
+        'Placeholder for photo-02.jpg in demo ZIP.\n',
+      ),
+    )
+    ..addFile(
+      ArchiveFile.string(
+        'README.txt',
+        'Demo ZIP shipped with MemFsProvider.\n',
+      ),
+    );
+  return Uint8List.fromList(ZipEncoder().encode(archive));
+}
+
+Uint8List _demoApkBytes() {
+  final archive = Archive()
+    ..addFile(
+      ArchiveFile.string(
+        'AndroidManifest.xml',
+        '<?xml version="1.0"?>\n'
+            '<manifest package="dev.fluff.demo" />\n',
+      ),
+    )
+    ..addFile(
+      ArchiveFile.bytes(
+        'classes.dex',
+        Uint8List.fromList(List<int>.generate(256, (i) => i & 0xFF)),
+      ),
+    )
+    ..addFile(
+      ArchiveFile.bytes(
+        'classes2.dex',
+        Uint8List.fromList(List<int>.generate(128, (i) => (i * 3) & 0xFF)),
+      ),
+    )
+    ..addFile(ArchiveFile.string('res/values/strings.xml', '<resources/>'))
+    ..addFile(ArchiveFile.string('res/layout/main.xml', '<View/>'))
+    ..addFile(
+      ArchiveFile.bytes(
+        'resources.arsc',
+        Uint8List.fromList(List<int>.generate(64, (i) => i & 0xFF)),
+      ),
+    )
+    ..addFile(
+      ArchiveFile.string('META-INF/MANIFEST.MF', 'Manifest-Version: 1.0\n'),
+    );
+  return Uint8List.fromList(ZipEncoder().encode(archive));
 }
