@@ -46,9 +46,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
                 tooltip: 'Up',
                 onPressed: () => _navigate(_cwd.parent),
               ),
-        title: Text(
-          _cwd.isRoot ? widget.provider.displayName : _cwd.name,
-        ),
+        title: Text(_cwd.isRoot ? widget.provider.displayName : _cwd.name),
         actions: [
           IconButton(
             icon: const Icon(Icons.brightness_6_outlined),
@@ -61,11 +59,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _PathBreadcrumbs(
-            path: _cwd,
-            onTap: _navigate,
-            gutter: gutter,
-          ),
+          _PathBreadcrumbs(path: _cwd, onTap: _navigate, gutter: gutter),
           const Divider(),
           Expanded(
             child: FutureBuilder<List<FsNode>>(
@@ -78,18 +72,22 @@ class _BrowseScreenState extends State<BrowseScreen> {
                   return Center(
                     child: Padding(
                       padding: EdgeInsets.all(gutter),
-                      child: Text('Error: ${snap.error}',
-                          style: theme.textTheme.bodyMedium),
+                      child: Text(
+                        'Error: ${snap.error}',
+                        style: theme.textTheme.bodyMedium,
+                      ),
                     ),
                   );
                 }
                 final items = snap.data ?? const <FsNode>[];
                 if (items.isEmpty) {
                   return Center(
-                    child: Text('Empty folder',
-                        style: theme.textTheme.bodyMedium?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        )),
+                    child: Text(
+                      'Empty folder',
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
                   );
                 }
                 return ListView.separated(
@@ -301,7 +299,7 @@ class _FsNodeTile extends StatelessWidget {
                       node.isDirectory
                           ? _formatDate(node.modified)
                           : '${_formatSize(node.size)}'
-                              '${node.modified != null ? '  ·  ${_formatDate(node.modified)}' : ''}',
+                                '${node.modified != null ? '  ·  ${_formatDate(node.modified)}' : ''}',
                       style: theme.textTheme.labelSmall,
                     ),
                   ],

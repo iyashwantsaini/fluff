@@ -86,12 +86,12 @@ Each pass of the **build-tier** skill appends an entry here with:
   demo tree and supports breadcrumb navigation + light/dark toggle.
 - **Routes**: `/` (root), `/Documents` (sample nested folder).
 - **Viewport**: detected `1233×1257` in the user's VS Code Simple
-  Browser via `window.innerWidth/innerHeight`. Screenshots were
-  rendered through a parallel Playwright session whose default
-  viewport is `1280×720`; the spec-required "use the detected
-  viewport" is **partially honoured** today (file names embed the
-  detected width × height, but Playwright renders at its own default
-  until Phase 2 wires `page.setViewportSize`).
+  Browser via `window.innerWidth` / `window.innerHeight`. That value
+  is then pinned into the headless screenshot driver with
+  `page.setViewportSize(...)` **before** capture, so the saved PNGs
+  are exactly `1233×1257` pixels with no asymmetric right-edge
+  whitespace from a default-viewport mismatch. Resize the Simple
+  Browser → the next pass captures at the new size automatically.
 - **Screenshots**:
   - `docs/screenshots/phase-1/browse-root-light@1233x1257.png`
   - `docs/screenshots/phase-1/browse-root-dark@1233x1257.png`
@@ -117,13 +117,22 @@ Each pass of the **build-tier** skill appends an entry here with:
   - Cleaned one `unnecessary_underscores` lint flagged by
     `flutter analyze`.
 - **Known limitations to address next iteration**:
-  - Playwright viewport ≠ Simple Browser viewport. Phase 2 needs a
-    one-line `page.setViewportSize({width, height})` before the
-    screenshot call so the rendered pixels match the detected size.
   - LocalFsProvider isn't shipped yet; web demo uses `MemFsProvider`.
     Android build will need `LocalFsProvider` (via SAF) plus a
     matching `flutter test`.
   - No multi-tab AppBar — landing for Phase 3 per PLAN.md §5.
+
+- **Fix re-applied on re-review (same date)**:
+  - User flagged residual right-edge whitespace and a missing
+    screenshots index. Root cause: the screenshot driver was using
+    its default `1280×720` headless viewport instead of the detected
+    Simple Browser viewport, so the saved PNG was wider than the
+    rendered Flutter canvas. Fixed by reading
+    `window.innerWidth/innerHeight` and calling
+    `page.setViewportSize(...)` before every screenshot. Re-captured
+    all four PNGs at true `1233×1257`. Added
+    [`docs/screenshots/README.md`](screenshots/README.md) as the
+    structured index and linked it from the top-level README.
 
 ---
 

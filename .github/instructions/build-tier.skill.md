@@ -62,8 +62,15 @@ flutter build web --no-tree-shake-icons
   (`open_browser_page` → `read_page` for `window.innerWidth`,
   `window.innerHeight`, or `run_playwright_code` with
   `page.evaluate('({w:innerWidth,h:innerHeight})')`).
+- **Pin the driver's render viewport to the detected size** before
+  any screenshot — e.g. `page.setViewportSize({width:w, height:h})`.
+  Skipping this step lets the headless driver render at its own
+  default (typically `1280×720`) while the Flutter canvas renders at
+  the smaller Simple Browser size, producing PNGs with an
+  asymmetric whitespace strip on the right. Always detect, then pin,
+  then screenshot.
 - Use that detected size as the screenshot resolution. Do **not**
-  assume 1280×720.
+  assume any fixed dimensions.
 
 ### 5. Walk every reachable route and screenshot
 

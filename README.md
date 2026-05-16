@@ -106,7 +106,7 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | Phase | Milestone | Status |
 | ----- | --------- | ------ |
 | 0 | Spec & plan locked | ✅ |
-| 1 | Workspace + `fluff_vfs` + `fluff_skin` + minimal browse screen | ⬜ |
+| 1 | Workspace + `fluff_vfs` + `fluff_skin` + minimal browse screen | ✅ |
 | 2 | `fluff_vault` (encrypted streaming AEAD) | ⬜ |
 | 3 | `fluff_remote` (SMB + SFTP) + foreground operations | ⬜ |
 | 4 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ⬜ |
@@ -117,6 +117,20 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 9 | Public 1.0 (F-Droid + GitHub Releases) | ⬜ |
 
 Detailed PR-by-PR plan: [PLAN.md §5](PLAN.md#5-phased-roadmap).
+
+---
+
+## Screenshots
+
+Every phase produces a fresh set of screenshots captured at the
+**actual** VS Code Simple Browser viewport (no hard-coded sizes).
+Browse them in [docs/screenshots/](docs/screenshots/) — the index
+there groups them by phase, by route, and by light / dark theme, and
+links back to the iteration review in [docs/DESIGN.md](docs/DESIGN.md).
+
+The loop that produces them is codified in
+[`.github/instructions/build-tier.skill.md`](.github/instructions/build-tier.skill.md);
+run it any time via the `/build-tier` prompt.
 
 ---
 
