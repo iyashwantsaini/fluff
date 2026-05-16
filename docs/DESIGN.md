@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phase 3 — vault (encrypted streaming AEAD)** (web slice shipped; biometric unlock / FLAG_SECURE / Move-to-vault quick action deferred to Phase 3.1) |
+| Current phase | **Phases 4 + 5 web slices** — remote accounts (mock SMB/SFTP) and archive viewer (zip/tar/tar.gz). Real `SmbFsProvider` / `SftpFsProvider` deferred to Phase 4.1; libarchive 7z/RAR/zstd deferred to Phase 5.1. |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -264,6 +264,81 @@ Each pass of the **build-tier** skill appends an entry here with:
   rejected, and `VaultFsProvider` write/list/read round-trip on a
   `MemFsProvider` backing where the resulting blob contains no
   plaintext substring.
+
+### 2026-05-16 — Phases 4 + 5, first pass (web slices)
+
+- **Scope**: two new packages and a shell refactor so the top-level
+  shell can host an arbitrary set of mounts.
+  - `packages/fluff_remote/` — pure-Dart `RemoteAccount`
+    (`RemoteKind.smb` | `RemoteKind.sftp`, host, port, share,
+    username, validation), in-memory `RemoteAccountStore` with a
+    broadcast `changes` stream, and `MockRemoteFsProvider` that
+    wraps a seeded `MemFsProvider` so each account kind exposes a
+    distinct tree (`/Shared`, `/Public` for SMB; `/home`, `/var`
+    for SFTP). The real `SmbFsProvider` (`smb_connect`) and
+    `SftpFsProvider` (`dartssh2`) land in Phase 4.1 on Android.
+  - `packages/fluff_archive/` — `ArchiveFsProvider.fromBytes`
+    decodes a zip / tar / tar.gz blob using the `archive` package
+    and exposes the contents through the standard `FsProvider`
+    seam. Capabilities are `FsCapabilities.readOnly`; write /
+    delete / rename / mkdir throw `UnsupportedError`. Phase 5.1
+    adds write support, plus 7z / RAR / zstd via `libarchive` FFI.
+  - App shell: `main.dart` grew an `_Mount` enum
+    (`storage | vault | remote | archive`) with a single shared
+    `Drawer` source of truth that lights up the current row. The
+    vault screen now accepts that `Drawer` from the parent instead
+    of building its own. New `AccountsScreen` lists stored
+    accounts in a card layout, exposes an empty state with a CTA,
+    a `SegmentedButton`-based "Add account" dialog (SFTP / SMB
+    with auto port hint), and a per-row delete button. URL
+    handlers added: `?accounts=1`, `?remote=<id>`, `?archive=1`.
+- **Routes / states added** (light + dark each):
+  `accounts-list`, `remote-sftp`, `remote-smb`,
+  `archive-root`, `archive-src`.
+- **Viewport**: detected `1233×1257`, pinned with
+  `page.setViewportSize` before every capture.
+- **Findings (per checklist)**:
+  - ✅ Account cards use a 1-px `outlineVariant` border and a
+    primary-container CircleAvatar, rhythm matches the storage
+    list rows. Subtitle stays on one line for both kinds; long
+    `user@host:port/share` strings ellipsize gracefully.
+  - ✅ AppBar of the active remote mount swaps the brightness
+    button for a `logout_rounded` action that snaps back to the
+    Accounts list without leaking the mock provider.
+  - ✅ Archive viewer reuses `BrowseScreen` so breadcrumb, row
+    treatment, size formatting, and modified-date column are
+    identical to Storage. `fluff-demo.zip` shows directory-first
+    sort, with the `assets` / `src` synthesised parent dirs ahead
+    of `CHANGELOG.md` and `README.txt`.
+  - ✅ Hamburger lives on every mount; selected row is
+    primary-tinted. Drawer dismisses on tap before `setState`
+    fires.
+  - ✅ No content touches viewport edges in any new state; FAB on
+    the Accounts screen respects the safe-area inset.
+- **Deferred to Phase 4.1 (Android)**:
+  - Real `SmbFsProvider` via `smb_connect`.
+  - Real `SftpFsProvider` via `dartssh2` (key-based + password).
+  - Keystore-backed JSON persistence for `RemoteAccountStore`
+    (currently in-memory).
+  - Drag-and-drop between a local tab and a remote tab.
+- **Deferred to Phase 5.1**:
+  - Write support inside `ArchiveFsProvider` (entries currently
+    throw `UnsupportedError`).
+  - `libarchive` FFI in `fluff_ffi` for 7z, RAR-read, zstd.
+  - Cross-compiled `.so`s in CI for `arm64-v8a` + `x86_64`.
+  - `DocumentsProvider` shim plugin exposing local + SMB through
+    the system file picker.
+- **Tests**:
+  - `dart test packages/fluff_remote` — 9 / 9 green
+    (account validation: SFTP defaults to 22, SMB requires a
+    share, invalid port rejected, summary embeds user + share;
+    store: upsert/remove emit events, list sorts case-insensitively;
+    provider: SMB and SFTP seeds expose the expected roots, and a
+    writeBytes/readBytes round-trip survives through the seam).
+  - `dart test packages/fluff_archive` — 7 / 7 green
+    (format sniffing, read-only capabilities, root + nested
+    listing, byte round-trip, all mutation methods throw, missing
+    paths return `null` from `stat`).
 
 ---
 

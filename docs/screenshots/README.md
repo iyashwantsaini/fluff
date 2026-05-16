@@ -39,6 +39,11 @@ The capture loop and the self-review checklist are codified in
 | Vault — locked landing | ![Vault locked, light](latest/vault-locked-light.png) | ![Vault locked, dark](latest/vault-locked-dark.png) |
 | Vault — create new | ![Vault create, light](latest/vault-create-light.png) | ![Vault create, dark](latest/vault-create-dark.png) |
 | Vault — unlocked listing | ![Vault unlocked, light](latest/vault-unlocked-light.png) | ![Vault unlocked, dark](latest/vault-unlocked-dark.png) |
+| Remote accounts — list | ![Accounts, light](latest/accounts-list-light.png) | ![Accounts, dark](latest/accounts-list-dark.png) |
+| Remote — SFTP mock (`VPS deploy`) | ![SFTP, light](latest/remote-sftp-light.png) | ![SFTP, dark](latest/remote-sftp-dark.png) |
+| Remote — SMB mock (`Home NAS`) | ![SMB, light](latest/remote-smb-light.png) | ![SMB, dark](latest/remote-smb-dark.png) |
+| Archive viewer — `fluff-demo.zip` root | ![Archive root, light](latest/archive-root-light.png) | ![Archive root, dark](latest/archive-root-dark.png) |
+| Archive viewer — `/src` inside zip | ![Archive src, light](latest/archive-src-light.png) | ![Archive src, dark](latest/archive-src-dark.png) |
 
 Rows for not-yet-shipped states will render as broken images until
 the matching phase lands — that's deliberate, it's the to-do list.

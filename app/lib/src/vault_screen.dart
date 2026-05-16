@@ -11,23 +11,18 @@ import 'browse_screen.dart';
 enum _VaultPhase { locked, create, unlocked }
 
 /// Encrypted-vault landing.
-///
-/// Web demo: uses an in-memory backing [MemFsProvider] for the
-/// blob container so the password flow can be exercised
-/// end-to-end without writing anything to disk.
 class VaultScreen extends StatefulWidget {
   const VaultScreen({
     super.key,
     required this.backing,
     required this.queue,
-    required this.onSwitchToStorage,
+    required this.drawer,
     this.onToggleBrightness,
   });
 
-  /// Provider used to persist the encrypted vault container.
   final FsProvider backing;
   final OperationQueue queue;
-  final VoidCallback onSwitchToStorage;
+  final Drawer drawer;
   final VoidCallback? onToggleBrightness;
 
   @override
@@ -46,8 +41,7 @@ class _VaultScreenState extends State<VaultScreen> {
   void initState() {
     super.initState();
     if (kIsWeb) {
-      final q = Uri.base.queryParameters;
-      final v = q['vault'];
+      final v = Uri.base.queryParameters['vault'];
       if (v == 'create') _phase = _VaultPhase.create;
       if (v == 'unlocked') {
         _phase = _VaultPhase.unlocked;
@@ -93,7 +87,7 @@ class _VaultScreenState extends State<VaultScreen> {
 
   Future<void> _create() async {
     if (_password.text.isEmpty || _password.text != _confirm.text) {
-      setState(() => _error = 'Passwords don\'t match');
+      setState(() => _error = "Passwords don't match");
       return;
     }
     setState(() {
@@ -154,11 +148,6 @@ class _VaultScreenState extends State<VaultScreen> {
     });
   }
 
-  bool _vaultExistsOnBacking() => false; // placeholder for Phase 3.1
-
-  // ignore: unused_element
-  bool get _suppressUnused => _vaultExistsOnBacking();
-
   @override
   Widget build(BuildContext context) {
     if (_phase == _VaultPhase.unlocked && _provider != null) {
@@ -166,7 +155,7 @@ class _VaultScreenState extends State<VaultScreen> {
         provider: _provider!,
         queue: widget.queue,
         onToggleBrightness: widget.onToggleBrightness,
-        leadingDrawer: _buildDrawer(context),
+        leadingDrawer: widget.drawer,
         appBarSuffix: IconButton(
           tooltip: 'Lock vault',
           icon: const Icon(Icons.lock_outline_rounded),
@@ -182,7 +171,7 @@ class _VaultScreenState extends State<VaultScreen> {
     final cs = Theme.of(context).colorScheme;
     final creating = _phase == _VaultPhase.create;
     return Scaffold(
-      drawer: _buildDrawer(context),
+      drawer: widget.drawer,
       appBar: AppBar(
         title: const Text('Vault'),
         actions: [
@@ -277,41 +266,6 @@ class _VaultScreenState extends State<VaultScreen> {
               ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-
-  Drawer _buildDrawer(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Padding(
-              padding: EdgeInsets.fromLTRB(20, 24, 20, 12),
-              child: Text(
-                'Fluff',
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
-              ),
-            ),
-            const Divider(height: 1),
-            ListTile(
-              leading: const Icon(Icons.folder_outlined),
-              title: const Text('Storage'),
-              onTap: () {
-                Navigator.of(context).pop();
-                widget.onSwitchToStorage();
-              },
-            ),
-            ListTile(
-              leading: Icon(Icons.lock_rounded, color: cs.primary),
-              title: const Text('Vault'),
-              selected: true,
-              onTap: () => Navigator.of(context).pop(),
-            ),
-          ],
         ),
       ),
     );

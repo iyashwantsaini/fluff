@@ -1,9 +1,13 @@
+import 'package:archive/archive.dart';
+import 'package:fluff_archive/fluff_archive.dart';
 import 'package:fluff_ops/fluff_ops.dart';
+import 'package:fluff_remote/fluff_remote.dart';
 import 'package:fluff_skin/fluff_skin.dart';
 import 'package:fluff_vfs/fluff_vfs.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
+import 'src/accounts_screen.dart';
 import 'src/browse_screen.dart';
 import 'src/vault_screen.dart';
 
@@ -12,7 +16,7 @@ void main() {
 }
 
 /// Top-level shell state: which mount is active.
-enum _Mount { storage, vault }
+enum _Mount { storage, vault, remote, archive }
 
 class FluffApp extends StatefulWidget {
   const FluffApp({super.key});
@@ -27,6 +31,7 @@ class _FluffAppState extends State<FluffApp> {
         ? ThemeMode.dark
         : ThemeMode.system,
   );
+
   late final FsProvider _fs = MemFsProvider.demo();
 
   /// Backing FS for the encrypted vault container.
@@ -35,10 +40,43 @@ class _FluffAppState extends State<FluffApp> {
     displayName: 'Vault container',
   );
 
+  /// Phase 4 web slice: in-memory account store seeded with two
+  /// representative mock accounts (one SMB, one SFTP).
+  late final RemoteAccountStore _accounts = RemoteAccountStore(
+    seed: [
+      RemoteAccount(
+        id: 'demo-smb',
+        label: 'Home NAS',
+        kind: RemoteKind.smb,
+        host: 'nas.lan',
+        share: 'media',
+        username: 'guest',
+      ),
+      RemoteAccount(
+        id: 'demo-sftp',
+        label: 'VPS deploy',
+        kind: RemoteKind.sftp,
+        host: 'deploy.example',
+        username: 'root',
+      ),
+    ],
+  );
+
+  /// Active remote provider (built lazily when a remote account is
+  /// selected from the Accounts screen).
+  MockRemoteFsProvider? _remoteProvider;
+
+  /// Phase 5 web slice: a synthetic in-memory zip mounted via
+  /// [ArchiveFsProvider].
+  late final ArchiveFsProvider _archive = _buildDemoArchive();
+
   late final OperationQueue _queue = OperationQueue(
     providerLookup: (id) {
       if (id == _fs.id) return _fs;
       if (id == _vaultBacking.id) return _vaultBacking;
+      if (id == _archive.id) return _archive;
+      final rp = _remoteProvider;
+      if (rp != null && id == rp.id) return rp;
       return null;
     },
   );
@@ -49,9 +87,20 @@ class _FluffAppState extends State<FluffApp> {
   void initState() {
     super.initState();
     if (kIsWeb) {
-      final v = Uri.base.queryParameters['vault'];
-      if (v != null && v.isNotEmpty) {
+      final q = Uri.base.queryParameters;
+      if ((q['vault'] ?? '').isNotEmpty) {
         _mount = _Mount.vault;
+      } else if ((q['archive'] ?? '').isNotEmpty) {
+        _mount = _Mount.archive;
+      } else if ((q['remote'] ?? '').isNotEmpty) {
+        _mount = _Mount.remote;
+        final id = q['remote']!;
+        final a = _accounts.byId(id);
+        if (a != null) {
+          _remoteProvider = MockRemoteFsProvider(account: a);
+        }
+      } else if (q['accounts'] == '1') {
+        _mount = _Mount.remote;
       }
     }
   }
@@ -60,11 +109,77 @@ class _FluffAppState extends State<FluffApp> {
   void dispose() {
     _skin.dispose();
     _queue.dispose();
+    // ignore: discarded_futures
+    _accounts.dispose();
     super.dispose();
+  }
+
+  ArchiveFsProvider _buildDemoArchive() {
+    final archive = Archive()
+      ..addFile(
+        ArchiveFile.string(
+          'README.txt',
+          'fluff_archive demo bundle\n\n'
+              'Open any text file inside this zip to confirm read-only '
+              'streaming works end-to-end.\n',
+        ),
+      )
+      ..addFile(
+        ArchiveFile.string(
+          'src/main.dart',
+          "void main() => print('hello from inside an archive');\n",
+        ),
+      )
+      ..addFile(
+        ArchiveFile.string(
+          'src/widgets/button.dart',
+          '// fluff archive viewer sample\nclass Button {}\n',
+        ),
+      )
+      ..addFile(
+        ArchiveFile.string(
+          'assets/logo.svg',
+          '<svg xmlns="http://www.w3.org/2000/svg" />',
+        ),
+      )
+      ..addFile(
+        ArchiveFile.string('CHANGELOG.md', '## 0.1.0\n* initial demo bundle\n'),
+      );
+    final bytes = Uint8List.fromList(ZipEncoder().encode(archive));
+    return ArchiveFsProvider.fromBytes(
+      bytes: bytes,
+      format: ArchiveFormat.zip,
+      displayName: 'fluff-demo.zip',
+      idSuffix: 'fluff-demo',
+    );
+  }
+
+  void _selectMount(_Mount m) {
+    setState(() => _mount = m);
+  }
+
+  void _openRemote(RemoteAccount account) {
+    setState(() {
+      _remoteProvider = MockRemoteFsProvider(account: account);
+      _mount = _Mount.remote;
+    });
   }
 
   Drawer _drawer(BuildContext context, _Mount selected) {
     final cs = Theme.of(context).colorScheme;
+    Widget tile(_Mount m, IconData icon, String label) {
+      final isSelected = m == selected;
+      return ListTile(
+        leading: Icon(icon, color: isSelected ? cs.primary : null),
+        title: Text(label),
+        selected: isSelected,
+        onTap: () {
+          Navigator.of(context).pop();
+          _selectMount(m);
+        },
+      );
+    }
+
     return Drawer(
       child: SafeArea(
         child: Column(
@@ -78,30 +193,10 @@ class _FluffAppState extends State<FluffApp> {
               ),
             ),
             const Divider(height: 1),
-            ListTile(
-              leading: Icon(
-                Icons.folder_outlined,
-                color: selected == _Mount.storage ? cs.primary : null,
-              ),
-              title: const Text('Storage'),
-              selected: selected == _Mount.storage,
-              onTap: () {
-                Navigator.of(context).pop();
-                setState(() => _mount = _Mount.storage);
-              },
-            ),
-            ListTile(
-              leading: Icon(
-                Icons.lock_rounded,
-                color: selected == _Mount.vault ? cs.primary : null,
-              ),
-              title: const Text('Vault'),
-              selected: selected == _Mount.vault,
-              onTap: () {
-                Navigator.of(context).pop();
-                setState(() => _mount = _Mount.vault);
-              },
-            ),
+            tile(_Mount.storage, Icons.folder_outlined, 'Storage'),
+            tile(_Mount.vault, Icons.lock_rounded, 'Vault'),
+            tile(_Mount.remote, Icons.cloud_outlined, 'Remote accounts'),
+            tile(_Mount.archive, Icons.archive_outlined, 'Archive viewer'),
           ],
         ),
       ),
@@ -132,9 +227,36 @@ class _FluffAppState extends State<FluffApp> {
                 return VaultScreen(
                   backing: _vaultBacking,
                   queue: _queue,
-                  onSwitchToStorage: () =>
-                      setState(() => _mount = _Mount.storage),
+                  drawer: _drawer(context, _Mount.vault),
                   onToggleBrightness: () => _skin.toggleBrightness(context),
+                );
+              case _Mount.remote:
+                final rp = _remoteProvider;
+                if (rp == null) {
+                  return AccountsScreen(
+                    store: _accounts,
+                    drawer: _drawer(context, _Mount.remote),
+                    onToggleBrightness: () => _skin.toggleBrightness(context),
+                    onOpen: _openRemote,
+                  );
+                }
+                return BrowseScreen(
+                  provider: rp,
+                  queue: _queue,
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
+                  leadingDrawer: _drawer(context, _Mount.remote),
+                  appBarSuffix: IconButton(
+                    tooltip: 'Disconnect',
+                    icon: const Icon(Icons.logout_rounded),
+                    onPressed: () => setState(() => _remoteProvider = null),
+                  ),
+                );
+              case _Mount.archive:
+                return BrowseScreen(
+                  provider: _archive,
+                  queue: _queue,
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
+                  leadingDrawer: _drawer(context, _Mount.archive),
                 );
             }
           },

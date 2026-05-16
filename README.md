@@ -109,8 +109,8 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 1 | Workspace + `fluff_vfs` + `fluff_skin` + minimal browse screen | ✅ |
 | 2 | `fluff_ops` (queue, copy/move/delete, conflicts) + multi-select + dialogs (web slice; Android foreground-task + journalled resume deferred to Phase 2.1) | ✅ |
 | 3 | `fluff_vault` (encrypted streaming AEAD) | ✅ (web slice; biometric / FLAG_SECURE / Move-to-vault → Phase 3.1) |
-| 4 | `fluff_remote` (SMB + SFTP) + foreground operations | ⬜ |
-| 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ⬜ |
+| 4 | `fluff_remote` (SMB + SFTP) + foreground operations | ✅ (web slice with mock provider + accounts UI; real `smb_connect` / `dartssh2` + foreground operations → Phase 4.1) |
+| 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ✅ (Phase 5 web slice: `fluff_archive` read-only zip/tar/tar.gz viewer; libarchive 7z/RAR/zstd + write support → Phase 5.1) |
 | 6 | `fluff_documents_provider` shim plugin | ⬜ |
 | 7 | Servers + Quick Settings tiles + homescreen widgets | ⬜ |
 | 8 | Sync, nearby transfer, share links | ⬜ |

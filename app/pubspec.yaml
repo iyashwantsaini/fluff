@@ -19,6 +19,11 @@ dependencies:
     path: ../packages/fluff_ops
   fluff_vault:
     path: ../packages/fluff_vault
+  fluff_remote:
+    path: ../packages/fluff_remote
+  fluff_archive:
+    path: ../packages/fluff_archive
+  archive: ^4.0.0
 
 dev_dependencies:
   flutter_test:
