@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phase 7 web slice** — sync engine + nearby discovery. `SyncEngine.plan()` produces a pre-execution diff between two `FsProvider`s (copy / replace / delete / skip + bytes-to-transfer); `NearbyDiscovery` lists peers and supports pair / unpair / forget. Deferred to 7.1: real mDNS via `multicast_dns`, TLS Wi-Fi Direct sockets, chunked resumable transfers via `OperationQueue`, scheduling + conflict strategy, one-time encrypted share links + QR. |
+| Current phase | **Phase 8 web slice** — intel: `fluff_intel` ships `OcrResult`, `SemanticIndex` (deterministic token rank), and `OrganisePlanner` producing a mocked AI rename / move diff. App adds Search and AI organise screens. Real ML Kit OCR + on-device embeddings (sqlite-vec) + Gemini-driven organise deferred to Phase 8.1. |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -79,6 +79,33 @@ Each pass of the **build-tier** skill appends an entry here with:
 - screenshots taken,
 - review findings,
 - fixes applied.
+
+### 2026-05-16 — Phase 8, first pass
+
+- **Scope**: new `fluff_intel` package. Ships `OcrResult` /
+  `OcrBlock` (normalised bounding boxes + confidence),
+  `SemanticIndex` with a deterministic token-overlap ranker plus
+  `defaultSeedIndex()`, and `OrganisePlanner.proposeForDownloads()`
+  returning a hand-curated `OrganisePlan` of 5 actions over the
+  demo `/Downloads` tree. 5 / 5 tests green via `dart test`.
+- **App**: two new mounts on the existing drawer. **Search**
+  (`?search=1` or `?q=...`) renders a token-ranked list with
+  monospaced paths, snippet, and a percent score pill. **AI
+  organise** (`?organise=1`) shows a primaryContainer summary
+  banner and a checkbox-driven action list with old path struck
+  through + new path highlighted, plus an `Apply N` filled
+  button.
+- **Viewport**: same auto-detected `1233×1257`.
+- **Screenshots**: 6 new PNGs — `search-empty-{light,dark}`,
+  `search-results-{light,dark}`, `organise-plan-{light,dark}`.
+- **Review**: search input fills the gutter cleanly; the ranked
+  pill stays readable in dark; organise tile borders pick up
+  `cs.primary` when accepted; struck-through old path + coloured
+  new path read at a glance. No clipping or asymmetric padding.
+- **Deferred (8.1)**: real Google ML Kit text recognition for
+  OCR, on-device embeddings (sqlite-vec) for true semantic
+  ranking, Gemini / on-device LLM for the organise planner
+  (with user-confirmation prompt + dry-run preview).
 
 ### 2026-05-16 — Phase 7, first pass
 

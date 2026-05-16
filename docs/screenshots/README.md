@@ -49,6 +49,9 @@ The capture loop and the self-review checklist are codified in
 | Servers — WebDAV running with traffic | ![WebDAV running, light](latest/server-webdav-running-light.png) | ![WebDAV running, dark](latest/server-webdav-running-dark.png) |
 | Sync — pre-execution plan diff | ![Sync, light](latest/sync-plan-light.png) | ![Sync, dark](latest/sync-plan-dark.png) |
 | Nearby devices — list (Pixel paired) | ![Nearby, light](latest/nearby-list-light.png) | ![Nearby, dark](latest/nearby-list-dark.png) |
+| Search — empty landing | ![Search empty, light](latest/search-empty-light.png) | ![Search empty, dark](latest/search-empty-dark.png) |
+| Search — `invoice internet` results | ![Search results, light](latest/search-results-light.png) | ![Search results, dark](latest/search-results-dark.png) |
+| AI organise — Tidy `/Downloads` plan | ![Organise, light](latest/organise-plan-light.png) | ![Organise, dark](latest/organise-plan-dark.png) |
 
 Rows for not-yet-shipped states will render as broken images until
 the matching phase lands — that's deliberate, it's the to-do list.

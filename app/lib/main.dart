@@ -2,6 +2,7 @@ import 'package:archive/archive.dart';
 import 'package:fluff_archive/fluff_archive.dart';
 import 'package:fluff_ops/fluff_ops.dart';
 import 'package:fluff_remote/fluff_remote.dart';
+import 'package:fluff_intel/fluff_intel.dart';
 import 'package:fluff_share/fluff_share.dart';
 import 'package:fluff_skin/fluff_skin.dart';
 import 'package:fluff_sync/fluff_sync.dart';
@@ -12,6 +13,8 @@ import 'package:flutter/material.dart';
 import 'src/accounts_screen.dart';
 import 'src/browse_screen.dart';
 import 'src/nearby_screen.dart';
+import 'src/organise_screen.dart';
+import 'src/search_screen.dart';
 import 'src/servers_screen.dart';
 import 'src/sync_screen.dart';
 import 'src/vault_screen.dart';
@@ -21,7 +24,7 @@ void main() {
 }
 
 /// Top-level shell state: which mount is active.
-enum _Mount { storage, vault, remote, archive, servers, sync, nearby }
+enum _Mount { storage, vault, remote, archive, servers, sync, nearby, search, organise }
 
 class FluffApp extends StatefulWidget {
   const FluffApp({super.key});
@@ -86,6 +89,13 @@ class _FluffAppState extends State<FluffApp> {
     seed: defaultSeedNearbyDevices(),
   );
 
+  /// Phase 8 web slice: semantic index seeded with the demo tree.
+  late final SemanticIndex _index = SemanticIndex(seed: defaultSeedIndex());
+
+  /// Phase 8 web slice: deterministic AI organise plan.
+  late final OrganisePlan _organise =
+      const OrganisePlanner().proposeForDownloads();
+
   /// Phase 7 web slice: two seeded in-memory `FsProvider`s the
   /// sync engine can diff against. Lazily built in [_ensureSyncDemo].
   MemFsProvider? _syncSource;
@@ -104,6 +114,7 @@ class _FluffAppState extends State<FluffApp> {
   );
 
   _Mount _mount = _Mount.storage;
+  String? _initialQuery;
 
   @override
   void initState() {
@@ -140,6 +151,11 @@ class _FluffAppState extends State<FluffApp> {
         _mount = _Mount.sync;
       } else if (q['nearby'] == '1') {
         _mount = _Mount.nearby;
+      } else if (q['search'] == '1' || (q['q'] ?? '').isNotEmpty) {
+        _mount = _Mount.search;
+        _initialQuery = q['q'];
+      } else if (q['organise'] == '1') {
+        _mount = _Mount.organise;
       }
     }
   }
@@ -258,6 +274,8 @@ class _FluffAppState extends State<FluffApp> {
             tile(_Mount.servers, Icons.dns_outlined, 'Servers'),
             tile(_Mount.sync, Icons.sync_rounded, 'Sync'),
             tile(_Mount.nearby, Icons.wifi_tethering, 'Nearby'),
+            tile(_Mount.search, Icons.search_rounded, 'Search'),
+            tile(_Mount.organise, Icons.auto_awesome_rounded, 'AI organise'),
           ],
         ),
       ),
@@ -351,6 +369,19 @@ class _FluffAppState extends State<FluffApp> {
                 return NearbyScreen(
                   discovery: _nearby,
                   drawer: _drawer(context, _Mount.nearby),
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
+                );
+              case _Mount.search:
+                return SearchScreen(
+                  index: _index,
+                  initialQuery: _initialQuery,
+                  drawer: _drawer(context, _Mount.search),
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
+                );
+              case _Mount.organise:
+                return OrganiseScreen(
+                  plan: _organise,
+                  drawer: _drawer(context, _Mount.organise),
                   onToggleBrightness: () => _skin.toggleBrightness(context),
                 );
             }
