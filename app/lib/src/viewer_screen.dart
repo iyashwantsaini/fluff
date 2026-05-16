@@ -1,11 +1,18 @@
-import 'dart:typed_data';
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io' show File;
 
 import 'package:archive/archive.dart';
+import 'package:chewie/chewie.dart';
 import 'package:fluff_skin/fluff_skin.dart';
 import 'package:fluff_vfs/fluff_vfs.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:just_audio/just_audio.dart' as ja;
+import 'package:path_provider/path_provider.dart';
+import 'package:video_player/video_player.dart';
 
 /// Returns a viewer kind for [name], based on extension. Recognised
 /// kinds: image, svg, markdown, text, video, audio, pdf, ebook,
@@ -158,8 +165,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
             'markdown' => _MarkdownView(bytes: data),
             'text' => _TextView(bytes: data),
             'archive' => _ArchiveView(name: name, bytes: data),
-            'video' ||
-            'audio' ||
+            'audio' => _AudioView(name: name, bytes: data),
+            'video' => _VideoView(name: name, bytes: data),
             'pdf' ||
             'ebook' => _MediaPlaceholder(name: name, kind: kind, bytes: data),
             _ => _HexView(bytes: data),
@@ -562,6 +569,312 @@ class _MediaPlaceholder extends StatelessWidget {
               ],
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// MIME guess for [name] — used when materialising bytes into a
+/// data: URL on web so the browser picks the right decoder.
+String _guessPlaybackMime(String name) {
+  final ext = name.toLowerCase().split('.').last;
+  return switch (ext) {
+    'mp3' => 'audio/mpeg',
+    'wav' => 'audio/wav',
+    'ogg' => 'audio/ogg',
+    'opus' => 'audio/ogg',
+    'flac' => 'audio/flac',
+    'm4a' || 'aac' => 'audio/mp4',
+    'wma' => 'audio/x-ms-wma',
+    'mp4' || 'm4v' => 'video/mp4',
+    'mkv' => 'video/x-matroska',
+    'webm' => 'video/webm',
+    'mov' => 'video/quicktime',
+    'avi' => 'video/x-msvideo',
+    '3gp' => 'video/3gpp',
+    _ => 'application/octet-stream',
+  };
+}
+
+/// Materialises [bytes] so that [video_player] / [just_audio] can
+/// consume them. On native platforms we write to the OS temp dir and
+/// return a `file://` path; on web we return a `data:` URL.
+Future<String> _materializeForPlayback(Uint8List bytes, String name) async {
+  if (kIsWeb) {
+    return 'data:${_guessPlaybackMime(name)};base64,${base64.encode(bytes)}';
+  }
+  final tmp = await getTemporaryDirectory();
+  // Sanitise the filename so weird characters never reach the FS.
+  final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+  final file = File('${tmp.path}/fluff_view_$safe');
+  await file.writeAsBytes(bytes, flush: true);
+  return file.path;
+}
+
+/// Audio player driven by [just_audio]. Renders the standard
+/// transport controls (play / pause, scrub, time, volume) so MP3,
+/// FLAC, OGG, WAV, etc. all play through the same UI.
+class _AudioView extends StatefulWidget {
+  const _AudioView({required this.name, required this.bytes});
+  final String name;
+  final Uint8List bytes;
+
+  @override
+  State<_AudioView> createState() => _AudioViewState();
+}
+
+class _AudioViewState extends State<_AudioView> {
+  final ja.AudioPlayer _player = ja.AudioPlayer();
+  Object? _error;
+  bool _ready = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final url = await _materializeForPlayback(widget.bytes, widget.name);
+      await _player.setUrl(kIsWeb ? url : Uri.file(url).toString());
+      if (mounted) setState(() => _ready = true);
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  @override
+  void dispose() {
+    // ignore: discarded_futures
+    _player.dispose();
+    super.dispose();
+  }
+
+  String _fmt(Duration d) {
+    final m = d.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = d.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return d.inHours > 0 ? '${d.inHours}:$m:$s' : '$m:$s';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final tokens = WlmTheme.of(context).tokens;
+    if (_error != null) {
+      return _MediaPlaceholder(
+        name: widget.name,
+        kind: 'audio',
+        bytes: widget.bytes,
+        extra: 'Could not decode audio: $_error',
+      );
+    }
+    if (!_ready) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Center(
+      child: Padding(
+        padding: EdgeInsets.all(tokens.spacing.xl),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 160,
+              height: 160,
+              decoration: BoxDecoration(
+                color: cs.primaryContainer,
+                borderRadius: BorderRadius.circular(tokens.radius.lg),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.music_note_rounded,
+                size: 88,
+                color: cs.onPrimaryContainer,
+              ),
+            ),
+            SizedBox(height: tokens.spacing.lg),
+            Text(
+              widget.name,
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+            SizedBox(height: tokens.spacing.lg),
+            StreamBuilder<Duration>(
+              stream: _player.positionStream,
+              builder: (context, posSnap) {
+                final pos = posSnap.data ?? Duration.zero;
+                final total = _player.duration ?? Duration.zero;
+                final maxMs = total.inMilliseconds == 0
+                    ? 1.0
+                    : total.inMilliseconds.toDouble();
+                return Column(
+                  children: [
+                    Slider(
+                      value: pos.inMilliseconds
+                          .clamp(0, maxMs.toInt())
+                          .toDouble(),
+                      max: maxMs,
+                      onChanged: (v) =>
+                          _player.seek(Duration(milliseconds: v.toInt())),
+                    ),
+                    Padding(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: tokens.spacing.md,
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [Text(_fmt(pos)), Text(_fmt(total))],
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+            SizedBox(height: tokens.spacing.md),
+            StreamBuilder<ja.PlayerState>(
+              stream: _player.playerStateStream,
+              builder: (context, snap) {
+                final playing = snap.data?.playing ?? false;
+                final processing =
+                    snap.data?.processingState ?? ja.ProcessingState.idle;
+                final loading =
+                    processing == ja.ProcessingState.loading ||
+                    processing == ja.ProcessingState.buffering;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    IconButton.filledTonal(
+                      tooltip: 'Back 10s',
+                      icon: const Icon(Icons.replay_10_rounded),
+                      onPressed: () => _player.seek(
+                        _player.position - const Duration(seconds: 10),
+                      ),
+                    ),
+                    SizedBox(width: tokens.spacing.md),
+                    IconButton.filled(
+                      iconSize: 40,
+                      tooltip: playing ? 'Pause' : 'Play',
+                      onPressed: loading
+                          ? null
+                          : () => playing ? _player.pause() : _player.play(),
+                      icon: loading
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Icon(
+                              playing
+                                  ? Icons.pause_rounded
+                                  : Icons.play_arrow_rounded,
+                            ),
+                    ),
+                    SizedBox(width: tokens.spacing.md),
+                    IconButton.filledTonal(
+                      tooltip: 'Forward 10s',
+                      icon: const Icon(Icons.forward_10_rounded),
+                      onPressed: () => _player.seek(
+                        _player.position + const Duration(seconds: 10),
+                      ),
+                    ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Video player built on [video_player] with the [chewie] controls
+/// overlay. Handles mp4 / mkv / webm / mov etc. wherever the
+/// underlying platform decoder supports them.
+class _VideoView extends StatefulWidget {
+  const _VideoView({required this.name, required this.bytes});
+  final String name;
+  final Uint8List bytes;
+
+  @override
+  State<_VideoView> createState() => _VideoViewState();
+}
+
+class _VideoViewState extends State<_VideoView> {
+  VideoPlayerController? _controller;
+  ChewieController? _chewie;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _init();
+  }
+
+  Future<void> _init() async {
+    try {
+      final url = await _materializeForPlayback(widget.bytes, widget.name);
+      final VideoPlayerController c;
+      if (kIsWeb) {
+        c = VideoPlayerController.networkUrl(Uri.parse(url));
+      } else {
+        c = VideoPlayerController.file(File(url));
+      }
+      await c.initialize();
+      if (!mounted) {
+        await c.dispose();
+        return;
+      }
+      setState(() {
+        _controller = c;
+        _chewie = ChewieController(
+          videoPlayerController: c,
+          autoPlay: false,
+          looping: false,
+          allowFullScreen: true,
+          allowPlaybackSpeedChanging: true,
+          showControls: true,
+        );
+      });
+    } catch (e) {
+      if (mounted) setState(() => _error = e);
+    }
+  }
+
+  @override
+  void dispose() {
+    _chewie?.dispose();
+    // ignore: discarded_futures
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return _MediaPlaceholder(
+        name: widget.name,
+        kind: 'video',
+        bytes: widget.bytes,
+        extra: 'Could not decode video: $_error',
+      );
+    }
+    final chewie = _chewie;
+    final controller = _controller;
+    if (chewie == null || controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return Container(
+      color: Colors.black,
+      child: Center(
+        child: AspectRatio(
+          aspectRatio: controller.value.aspectRatio == 0
+              ? 16 / 9
+              : controller.value.aspectRatio,
+          child: Chewie(controller: chewie),
         ),
       ),
     );

@@ -559,174 +559,201 @@ class _BrowseScreenState extends State<BrowseScreen> {
     final hasSelection = _selected.isNotEmpty;
     final hasClipboard = _clipboard != null;
 
-    return Scaffold(
-      drawer: widget.leadingDrawer,
-      appBar: _buildAppBar(theme, tokens, hasSelection),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (!_searching && !hasSelection)
-            _PathBreadcrumbs(path: _cwd, onTap: _navigate, gutter: gutter),
-          if (_searching) _searchBar(theme, tokens, gutter),
-          if (!hasSelection) _filterChips(theme, tokens, gutter),
-          if (hasClipboard && !hasSelection && !_searching)
-            _clipboardBanner(theme, tokens, gutter),
-          const Divider(height: 1),
-          Expanded(
-            child: FutureBuilder<List<FsNode>>(
-              future: _listing,
-              builder: (context, snap) {
-                if (snap.connectionState != ConnectionState.done) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snap.hasError) {
-                  return Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(gutter),
+    // System back button: swallow it while the user can still navigate
+    // backwards inside the browser. Order of unwind: active search ->
+    // active selection -> parent folder. Only when at the root with
+    // nothing selected and no in-flight search do we let the framework
+    // pop (which on Android exits the app).
+    final canPop = _cwd.isRoot && !hasSelection && !_searching;
+    return PopScope(
+      canPop: canPop,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        if (_searching) {
+          setState(() {
+            _searching = false;
+            _query = '';
+            _searchCtrl.clear();
+          });
+          return;
+        }
+        if (hasSelection) {
+          setState(_selected.clear);
+          return;
+        }
+        if (!_cwd.isRoot) {
+          _navigate(_cwd.parent);
+        }
+      },
+      child: Scaffold(
+        drawer: widget.leadingDrawer,
+        appBar: _buildAppBar(theme, tokens, hasSelection),
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (!_searching && !hasSelection)
+              _PathBreadcrumbs(path: _cwd, onTap: _navigate, gutter: gutter),
+            if (_searching) _searchBar(theme, tokens, gutter),
+            if (!hasSelection) _filterChips(theme, tokens, gutter),
+            if (hasClipboard && !hasSelection && !_searching)
+              _clipboardBanner(theme, tokens, gutter),
+            const Divider(height: 1),
+            Expanded(
+              child: FutureBuilder<List<FsNode>>(
+                future: _listing,
+                builder: (context, snap) {
+                  if (snap.connectionState != ConnectionState.done) {
+                    return const Center(child: CircularProgressIndicator());
+                  }
+                  if (snap.hasError) {
+                    return Center(
+                      child: Padding(
+                        padding: EdgeInsets.all(gutter),
+                        child: Text(
+                          'Error: ${snap.error}',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ),
+                    );
+                  }
+                  final items = _applyViewPrefs(snap.data ?? const <FsNode>[]);
+                  if (items.isEmpty) {
+                    return Center(
                       child: Text(
-                        'Error: ${snap.error}',
-                        style: theme.textTheme.bodyMedium,
+                        _query.isEmpty
+                            ? 'Empty folder'
+                            : 'No matches for "$_query"',
+                        style: theme.textTheme.bodyMedium?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
                       ),
-                    ),
-                  );
-                }
-                final items = _applyViewPrefs(snap.data ?? const <FsNode>[]);
-                if (items.isEmpty) {
-                  return Center(
-                    child: Text(
-                      _query.isEmpty
-                          ? 'Empty folder'
-                          : 'No matches for "$_query"',
-                      style: theme.textTheme.bodyMedium?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  );
-                }
-                Widget tile(int i) {
-                  final n = items[i];
-                  final isSelected = _selected.contains(n.path);
-                  return _FsNodeTile(
-                    node: n,
-                    selected: isSelected,
-                    selectionActive: hasSelection,
-                    onTap: () {
-                      if (hasSelection) {
-                        _toggleSelect(n.path);
-                      } else if (n.isDirectory) {
-                        _navigate(n.path);
-                      } else {
-                        _openFile(n);
-                      }
-                    },
-                    onLongPress: () => _toggleSelect(n.path),
-                  );
-                }
+                    );
+                  }
+                  Widget tile(int i) {
+                    final n = items[i];
+                    final isSelected = _selected.contains(n.path);
+                    return _FsNodeTile(
+                      node: n,
+                      selected: isSelected,
+                      selectionActive: hasSelection,
+                      onTap: () {
+                        if (hasSelection) {
+                          _toggleSelect(n.path);
+                        } else if (n.isDirectory) {
+                          _navigate(n.path);
+                        } else {
+                          _openFile(n);
+                        }
+                      },
+                      onLongPress: () => _toggleSelect(n.path),
+                    );
+                  }
 
-                if (_viewMode == _ViewMode.grid) {
-                  final width = MediaQuery.of(context).size.width;
-                  final crossAxisCount = (width / 200).floor().clamp(2, 6);
-                  return GridView.builder(
+                  if (_viewMode == _ViewMode.grid) {
+                    final width = MediaQuery.of(context).size.width;
+                    final crossAxisCount = (width / 200).floor().clamp(2, 6);
+                    return GridView.builder(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: gutter,
+                        vertical: tokens.spacing.sm,
+                      ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: tokens.spacing.sm,
+                        mainAxisSpacing: tokens.spacing.sm,
+                        mainAxisExtent: 76,
+                      ),
+                      itemCount: items.length,
+                      itemBuilder: (_, i) => tile(i),
+                    );
+                  }
+                  if (_viewMode == _ViewMode.gallery) {
+                    final width = MediaQuery.of(context).size.width;
+                    final crossAxisCount = (width / 140).floor().clamp(2, 8);
+                    return GridView.builder(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: gutter,
+                        vertical: tokens.spacing.sm,
+                      ),
+                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: crossAxisCount,
+                        crossAxisSpacing: tokens.spacing.sm,
+                        mainAxisSpacing: tokens.spacing.sm,
+                        childAspectRatio: 0.9,
+                      ),
+                      itemCount: items.length,
+                      itemBuilder: (_, i) {
+                        final n = items[i];
+                        final isSelected = _selected.contains(n.path);
+                        return _GalleryTile(
+                          node: n,
+                          selected: isSelected,
+                          onTap: () {
+                            if (hasSelection) {
+                              _toggleSelect(n.path);
+                            } else if (n.isDirectory) {
+                              _navigate(n.path);
+                            } else {
+                              _openFile(n);
+                            }
+                          },
+                          onLongPress: () => _toggleSelect(n.path),
+                        );
+                      },
+                    );
+                  }
+                  if (_viewMode == _ViewMode.details) {
+                    return _DetailsTable(
+                      items: items,
+                      selected: _selected,
+                      selectionActive: hasSelection,
+                      onTap: (n) {
+                        if (hasSelection) {
+                          _toggleSelect(n.path);
+                        } else if (n.isDirectory) {
+                          _navigate(n.path);
+                        } else {
+                          _openFile(n);
+                        }
+                      },
+                      onLongPress: (n) => _toggleSelect(n.path),
+                      onProperties: _showProperties,
+                    );
+                  }
+                  return ListView.separated(
                     padding: EdgeInsets.symmetric(
                       horizontal: gutter,
                       vertical: tokens.spacing.sm,
                     ),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: tokens.spacing.sm,
-                      mainAxisSpacing: tokens.spacing.sm,
-                      mainAxisExtent: 76,
-                    ),
-                    itemCount: items.length,
                     itemBuilder: (_, i) => tile(i),
-                  );
-                }
-                if (_viewMode == _ViewMode.gallery) {
-                  final width = MediaQuery.of(context).size.width;
-                  final crossAxisCount = (width / 140).floor().clamp(2, 8);
-                  return GridView.builder(
-                    padding: EdgeInsets.symmetric(
-                      horizontal: gutter,
-                      vertical: tokens.spacing.sm,
-                    ),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: crossAxisCount,
-                      crossAxisSpacing: tokens.spacing.sm,
-                      mainAxisSpacing: tokens.spacing.sm,
-                      childAspectRatio: 0.9,
-                    ),
+                    separatorBuilder: (_, _) =>
+                        SizedBox(height: tokens.spacing.xs),
                     itemCount: items.length,
-                    itemBuilder: (_, i) {
-                      final n = items[i];
-                      final isSelected = _selected.contains(n.path);
-                      return _GalleryTile(
-                        node: n,
-                        selected: isSelected,
-                        onTap: () {
-                          if (hasSelection) {
-                            _toggleSelect(n.path);
-                          } else if (n.isDirectory) {
-                            _navigate(n.path);
-                          } else {
-                            _openFile(n);
-                          }
-                        },
-                        onLongPress: () => _toggleSelect(n.path),
-                      );
-                    },
                   );
-                }
-                if (_viewMode == _ViewMode.details) {
-                  return _DetailsTable(
-                    items: items,
-                    selected: _selected,
-                    selectionActive: hasSelection,
-                    onTap: (n) {
-                      if (hasSelection) {
-                        _toggleSelect(n.path);
-                      } else if (n.isDirectory) {
-                        _navigate(n.path);
-                      } else {
-                        _openFile(n);
-                      }
-                    },
-                    onLongPress: (n) => _toggleSelect(n.path),
-                    onProperties: _showProperties,
-                  );
-                }
-                return ListView.separated(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: gutter,
-                    vertical: tokens.spacing.sm,
-                  ),
-                  itemBuilder: (_, i) => tile(i),
-                  separatorBuilder: (_, _) =>
-                      SizedBox(height: tokens.spacing.xs),
-                  itemCount: items.length,
-                );
-              },
-            ),
-          ),
-          ProgressSheet(operations: _ops, latest: _latestProgress),
-        ],
-      ),
-      floatingActionButton: hasClipboard && !hasSelection && !_searching
-          ? FloatingActionButton.extended(
-              onPressed: _paste,
-              icon: const Icon(Icons.content_paste_go_rounded),
-              label: Text(
-                _clipboard!.kind == _ClipboardKind.copy
-                    ? 'Paste here'
-                    : 'Move here',
+                },
               ),
-            )
-          : (!hasSelection && !_searching
-                ? FloatingActionButton(
-                    onPressed: _newFolder,
-                    tooltip: 'New folder',
-                    child: const Icon(Icons.create_new_folder_outlined),
-                  )
-                : null),
+            ),
+            ProgressSheet(operations: _ops, latest: _latestProgress),
+          ],
+        ),
+        floatingActionButton: hasClipboard && !hasSelection && !_searching
+            ? FloatingActionButton.extended(
+                onPressed: _paste,
+                icon: const Icon(Icons.content_paste_go_rounded),
+                label: Text(
+                  _clipboard!.kind == _ClipboardKind.copy
+                      ? 'Paste here'
+                      : 'Move here',
+                ),
+              )
+            : (!hasSelection && !_searching
+                  ? FloatingActionButton(
+                      onPressed: _newFolder,
+                      tooltip: 'New folder',
+                      child: const Icon(Icons.create_new_folder_outlined),
+                    )
+                  : null),
+      ),
     );
   }
 

@@ -1,7 +1,7 @@
 name: fluff
 description: "Fluff — a pure-Flutter Android file manager."
 publish_to: 'none'
-version: 0.2.0+5
+version: 0.3.0+6
 
 environment:
   sdk: ^3.11.5
@@ -35,6 +35,9 @@ dependencies:
   shared_preferences: ^2.3.0
   path_provider: ^2.1.4
   permission_handler: ^11.3.1
+  just_audio: ^0.9.42
+  video_player: ^2.9.2
+  chewie: ^1.8.5
 
 dev_dependencies:
   flutter_test:

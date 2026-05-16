@@ -12,6 +12,9 @@
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+    <!-- video_player needs INTERNET for network streams; audio + video
+         playback on Android 13+ benefit from FOREGROUND_SERVICE_MEDIA_PLAYBACK. -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:label="fluff"
