@@ -17,6 +17,8 @@ dependencies:
     path: ../packages/fluff_skin
   fluff_ops:
     path: ../packages/fluff_ops
+  fluff_vault:
+    path: ../packages/fluff_vault
 
 dev_dependencies:
   flutter_test:

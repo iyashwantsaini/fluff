@@ -58,8 +58,11 @@ For each feature batch, follow the
    `http://localhost:8765` in the **VS Code Simple Browser**.
 3. Detect the actual viewport size in the Simple Browser
    (do **not** hard-code 1280×720 — the user may have resized it).
-4. Capture screenshots of every reachable route into
-   `docs/screenshots/<phase>/<route>.png` at the detected viewport.
+4. Capture screenshots of every reachable state — light **and**
+   dark for each — into `docs/screenshots/latest/<state>-{light,dark}.png`
+   at the detected viewport. There are no per-phase subfolders;
+   every pass overwrites the PNGs it touches so the docs always
+   show the current UI.
 5. Self-review each screenshot for **whitespace at edges**, clipped
    content, alignment glitches, contrast issues, and inconsistent
    spacing. Document findings in

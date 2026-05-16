@@ -74,13 +74,29 @@ flutter build web --no-tree-shake-icons
 
 ### 5. Walk every reachable route and screenshot
 
-- For each route in the batch:
-  1. Navigate to it.
+Screenshots live in **one** folder: [`docs/screenshots/latest/`](../../docs/screenshots/latest/).
+There are no per-phase subfolders. Every pass **overwrites** the
+PNGs for the states it touches, so the docs always reflect the
+current UI — never a historical one.
+
+- For each reachable state in the batch:
+  1. Navigate to it (use the relevant demo-URL handler if Flutter
+     web won't honour pointer gestures, e.g. long-press).
   2. Wait for `networkidle` + 250 ms settle.
-  3. Capture a screenshot via `screenshot_page` to
-     `docs/screenshots/<phase>/<route-slug>@<width>x<height>.png`.
-- If the batch introduces a responsive breakpoint, capture both a
-  phone width (≤ 480) and the detected width.
+  3. Capture **both themes** by toggling `?dark=0` / `?dark=1` and
+     write to:
+     - `docs/screenshots/latest/<state-slug>-light.png`
+     - `docs/screenshots/latest/<state-slug>-dark.png`
+  4. Filenames carry **no** resolution suffix — the size is
+     intrinsic to the PNG and the viewport is detected fresh on
+     every pass.
+- The full state inventory (one row per state, light + dark in
+  side-by-side columns) lives in
+  [`docs/screenshots/README.md`](../../docs/screenshots/README.md).
+  Add a row there for any new state this batch introduces.
+- If the batch introduces a responsive breakpoint, also capture a
+  phone width (≤ 480) using `-phone-light.png` / `-phone-dark.png`
+  suffixes.
 
 ### 6. Self-review the screenshots
 
@@ -119,15 +135,24 @@ log" with the screenshot path and the verdict.
 ## Outputs
 
 - Working code under the relevant `packages/` / `app/`.
-- A screenshot directory under `docs/screenshots/<phase>/`.
+- Refreshed PNGs in [`docs/screenshots/latest/`](../../docs/screenshots/latest/)
+  (light + dark for every touched state).
+- An updated [`docs/screenshots/README.md`](../../docs/screenshots/README.md)
+  inventory with any new rows.
 - An updated [docs/DESIGN.md](../../docs/DESIGN.md) with the
-  iteration log entry.
+  iteration log entry (use this as the historical record — the PNG
+  folder itself is **not** historical).
 - A clean `flutter analyze` and `melos run test`.
 
 ## Anti-patterns
 
 - ❌ Hard-coding `1280x720` (or any other size) as the screenshot
   viewport. The browser is the source of truth.
+- ❌ Per-phase subfolders (`phase-1/`, `phase-2/`, …). One
+  `latest/` folder; overwrite, don't accumulate.
+- ❌ Resolution suffixes in filenames (`…@1233x1257.png`). The PNG
+  metadata carries the size; the filename should not.
+- ❌ Capturing only light *or* only dark. Both per state, every pass.
 - ❌ Screenshotting one route and calling it done.
 - ❌ "I'll add the screenshots later." Screenshots are part of the
   same commit / PR as the feature.

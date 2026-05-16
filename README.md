@@ -108,7 +108,7 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 0 | Spec & plan locked | ✅ |
 | 1 | Workspace + `fluff_vfs` + `fluff_skin` + minimal browse screen | ✅ |
 | 2 | `fluff_ops` (queue, copy/move/delete, conflicts) + multi-select + dialogs (web slice; Android foreground-task + journalled resume deferred to Phase 2.1) | ✅ |
-| 3 | `fluff_vault` (encrypted streaming AEAD) | ⬜ |
+| 3 | `fluff_vault` (encrypted streaming AEAD) | ✅ (web slice; biometric / FLAG_SECURE / Move-to-vault → Phase 3.1) |
 | 4 | `fluff_remote` (SMB + SFTP) + foreground operations | ⬜ |
 | 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ⬜ |
 | 6 | `fluff_documents_provider` shim plugin | ⬜ |

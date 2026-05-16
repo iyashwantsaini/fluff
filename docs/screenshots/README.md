@@ -1,81 +1,44 @@
 # Screenshots
 
-Each subfolder corresponds to a phase from
-[PLAN.md §5](../../PLAN.md#5-phased-roadmap). Filenames embed the
-**actual** VS Code Simple Browser viewport that the screenshot was
-rendered at — `<route>-<theme>@<W>x<H>.png`. Width / height are
-**detected at capture time** via `window.innerWidth` /
-`window.innerHeight`, then pinned into the headless browser with
-`page.setViewportSize` so the rendered pixels match the canvas the
-user actually sees. No hard-coded sizes — when the Simple Browser is
-resized, the next pass captures at the new size.
+This folder always holds the **latest** capture of every reachable
+state in the app. There are no per-phase subfolders — every new
+build overwrites the relevant PNGs in [`latest/`](latest/) so the
+docs always show the current UI, not a historical one.
 
 The capture loop and the self-review checklist are codified in
 [`.github/instructions/build-tier.skill.md`](../../.github/instructions/build-tier.skill.md).
 
----
+**Conventions**
 
-## Phase 1 — workspace + skeleton browser
+- One PNG per state, two themes: `<state>-light.png` and
+  `<state>-dark.png` in [`latest/`](latest/).
+- Sizes are **detected at capture time** from the VS Code Simple
+  Browser viewport (`window.innerWidth` / `window.innerHeight`),
+  then pinned with `page.setViewportSize` before the screenshot.
+  No hard-coded sizes.
+- The table below has **light and dark side by side, one row per
+  state**, so reviewers can spot drift at a glance.
 
-**Viewport captured at:** `1233 × 1257` (the Simple Browser
-dimensions detected on `2026-05-16`).
-
-**Routes captured:** `/` (root of `MemFsProvider.demo()`),
-`/Documents` (nested folder with three sample files).
-
-### Light
-
-| Route | Screenshot |
-| ----- | ---------- |
-| `/` | ![Root, light](phase-1/browse-root-light@1233x1257.png) |
-| `/Documents` | ![Documents, light](phase-1/browse-documents-light@1233x1257.png) |
-
-### Dark
-
-| Route | Screenshot |
-| ----- | ---------- |
-| `/` | ![Root, dark](phase-1/browse-root-dark@1233x1257.png) |
-| `/Documents` | ![Documents, dark](phase-1/browse-documents-dark@1233x1257.png) |
-
-### Review notes for this pass
-
-See [`../DESIGN.md`](../DESIGN.md) → **Iteration log** →
-`2026-05-16 — Phase 1`.
+> Per-state findings for the current pass live in
+> [`../DESIGN.md`](../DESIGN.md) → **Iteration log**.
 
 ---
 
-## Phase 2 — operations, multi-select, dialogs
+## Latest
 
-**Viewport captured at:** `1233 × 1257` (Simple Browser dimensions
-detected on `2026-05-16`).
+| State | Light | Dark |
+| ----- | ----- | ---- |
+| Browse — root listing | ![Root, light](latest/browse-root-light.png) | ![Root, dark](latest/browse-root-dark.png) |
+| Browse — `/Documents` listing | ![Documents, light](latest/browse-documents-light.png) | ![Documents, dark](latest/browse-documents-dark.png) |
+| Multi-select action bar (3 folders selected) | ![Selection, light](latest/selection-multi-light.png) | ![Selection, dark](latest/selection-multi-dark.png) |
+| Properties dialog (`/Documents/notes.txt`) | ![Properties, light](latest/properties-dialog-light.png) | ![Properties, dark](latest/properties-dialog-dark.png) |
+| Conflict dialog (Skip / Keep both / Replace) | ![Conflict, light](latest/conflict-dialog-light.png) | ![Conflict, dark](latest/conflict-dialog-dark.png) |
+| Inline search (`note` in `/Documents`) | ![Search, light](latest/search-active-light.png) | ![Search, dark](latest/search-active-dark.png) |
+| Progress sheet mid-copy (2 / 3 items, 69 %) | ![Progress, light](latest/progress-sheet-light.png) | ![Progress, dark](latest/progress-sheet-dark.png) |
+| Clipboard banner + paste FAB | ![Clipboard, light](latest/clipboard-paste-light.png) | ![Clipboard, dark](latest/clipboard-paste-dark.png) |
+| Vault — locked landing | ![Vault locked, light](latest/vault-locked-light.png) | ![Vault locked, dark](latest/vault-locked-dark.png) |
+| Vault — create new | ![Vault create, light](latest/vault-create-light.png) | ![Vault create, dark](latest/vault-create-dark.png) |
+| Vault — unlocked listing | ![Vault unlocked, light](latest/vault-unlocked-light.png) | ![Vault unlocked, dark](latest/vault-unlocked-dark.png) |
 
-**Routes / states captured** (driven by the `?cwd=…`, `?sel=…`,
-`?search=…`, `?props=…`, `?conflict=…`, `?clip=…`, `?fakeOp=…`,
-`?dark=…` demo URL handler in `BrowseScreen._applyDemoUrl`):
-
-### Light
-
-| State | Screenshot |
-| ----- | ---------- |
-| Root (clipboard banner + paste FAB after copy) | ![Clipboard paste, light](phase-2/clipboard-paste-light@1233x1257.png) |
-| Three folders multi-selected (action bar: copy / cut / delete / properties) | ![Selection, light](phase-2/selection-multi-light@1233x1257.png) |
-| Properties dialog for `/Documents/notes.txt` | ![Properties, light](phase-2/properties-dialog-light@1233x1257.png) |
-| Conflict dialog (Skip / Keep both / Replace) | ![Conflict, light](phase-2/conflict-dialog-light@1233x1257.png) |
-| Inline search active in `/Documents` (`note`) | ![Search, light](phase-2/search-active-light@1233x1257.png) |
-| Progress sheet mid-copy (2 / 3 items, 69 %) | ![Progress, light](phase-2/progress-sheet-light@1233x1257.png) |
-| Root (default landing) | ![Root, light](phase-2/browse-root-light@1233x1257.png) |
-| `/Documents` listing | ![Documents, light](phase-2/browse-documents-light@1233x1257.png) |
-
-### Dark
-
-| State | Screenshot |
-| ----- | ---------- |
-| Root | ![Root, dark](phase-2/browse-root-dark@1233x1257.png) |
-| Multi-select action bar | ![Selection, dark](phase-2/selection-multi-dark@1233x1257.png) |
-| Properties dialog | ![Properties, dark](phase-2/properties-dialog-dark@1233x1257.png) |
-| Progress sheet mid-copy | ![Progress, dark](phase-2/progress-sheet-dark@1233x1257.png) |
-
-### Review notes for this pass
-
-See [`../DESIGN.md`](../DESIGN.md) → **Iteration log** →
-`2026-05-16 — Phase 2`.
+Rows for not-yet-shipped states will render as broken images until
+the matching phase lands — that's deliberate, it's the to-do list.

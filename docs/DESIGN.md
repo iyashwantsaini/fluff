@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phase 2 — operations + multi-select** (web slice shipped; Android slice deferred to Phase 2.1) |
+| Current phase | **Phase 3 — vault (encrypted streaming AEAD)** (web slice shipped; biometric unlock / FLAG_SECURE / Move-to-vault quick action deferred to Phase 3.1) |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -197,6 +197,73 @@ Each pass of the **build-tier** skill appends an entry here with:
 - **Tests**: 6 / 6 green in `dart test packages/fluff_ops` —
   copy, move, delete, auto-rename on conflict, progress emission,
   failure surfacing.
+
+### 2026-05-16 — Phase 3, first pass
+
+- **Scope**: new `packages/fluff_vault/` (pure Dart, no Flutter dep)
+  implementing PLAN.md §6.4 + §6.5 — `VaultHeader` (magic +
+  Argon2id KDF params + AEAD wrapped master key + encrypted tree),
+  `VaultKeys` with `HKDF-SHA256` per-file subkeys, chunked
+  `XChaCha20-Poly1305` streaming AEAD at 64 KiB per chunk with a
+  little-endian counter nonce, `Vault.create / unlock /
+  reencryptHeader`, and `VaultFsProvider` which mounts on any
+  backing `FsProvider` so files at rest are only ciphertext blobs.
+  App-side: new top-level Mount switcher (`Storage` | `Vault`) in
+  `main.dart` driven by a shared `Drawer`, new `VaultScreen` with
+  `locked` / `create` / `unlocked` phases, `BrowseScreen` now
+  accepts optional `leadingDrawer` + `appBarSuffix` so the vault
+  view can host its own drawer and lock button, and a `?vault=`
+  URL handler that boots a demo unlocked vault (password `demo`,
+  two folders, three files including a 900 KiB PDF) so the encrypted
+  state can be screenshotted end-to-end.
+- **Routes / states**: storage root + `/Documents`, multi-select,
+  properties, conflict, search, progress sheet, clipboard banner,
+  vault locked, vault create, vault unlocked — light **and** dark
+  for every state.
+- **Viewport**: detected `1233×1257`, pinned with
+  `page.setViewportSize` before every capture (no hard-coded sizes).
+- **Screenshots** — all in `docs/screenshots/latest/`, overwritten
+  each pass, no per-phase subfolder, no resolution suffix, light +
+  dark side by side in [the README table](screenshots/README.md):
+  `browse-root`, `browse-documents`, `selection-multi`,
+  `properties-dialog`, `conflict-dialog`, `search-active`,
+  `progress-sheet`, `clipboard-paste`, `vault-locked`,
+  `vault-create`, `vault-unlocked` — each `{light,dark}.png`.
+- **Findings (per checklist)**:
+  - ✅ Vault locked + create screens center a 420-px max-width
+    column; the shield / lock glyph + heading + body + inputs +
+    primary button all share the `spacing.lg` vertical rhythm.
+    No content touches the viewport edges; in dark the elevated
+    surface contrasts cleanly with the body background.
+  - ✅ Vault unlocked screen reuses `BrowseScreen` so list rows,
+    breadcrumb, and AppBar treatment are identical to storage —
+    only the AppBar title (`Vault`) and the extra lock-icon suffix
+    distinguish them. The hamburger reveals the same Mount drawer.
+  - ✅ Re-captured darks for `clipboard-paste`, `conflict-dialog`,
+    and `search-active` that Phase 2 had skipped, so the table is
+    now complete.
+  - ✅ Lock icon is `lock_outline_rounded` in both themes; spacing
+    against the brightness toggle matches the `spacing.sm` AppBar
+    action gap used elsewhere.
+- **Deferred to Phase 3.1**:
+  - Biometric unlock (`local_auth`) + recent-unlock cache.
+  - `FLAG_SECURE` on the vault route so screenshots are blocked at
+    the OS level on Android.
+  - "Move to vault" quick action on storage list rows, including
+    the secure-wipe of the source file via `LocalFsProvider`.
+  - CBOR tree encoding (currently JSON for the web slice).
+  - Property tests via `glados` over libsodium reference vectors,
+    plus a benchmark number in the PR description per the
+    `fluff_vault` hard rule.
+  - Change-password flow (KEK rewrap without re-encrypting blobs).
+- **Tests**: 9 / 9 green in `dart test packages/fluff_vault` —
+  header round-trip, header rejects wrong magic, AEAD on a small
+  payload, AEAD across 4 × 64 KiB chunks, single-byte tamper is
+  rejected with `SecretBoxAuthenticationError`, vault create →
+  reencrypt → unlock preserves the master key, wrong password is
+  rejected, and `VaultFsProvider` write/list/read round-trip on a
+  `MemFsProvider` backing where the resulting blob contains no
+  plaintext substring.
 
 ---
 

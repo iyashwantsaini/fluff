@@ -29,13 +29,24 @@ class _Clipboard {
 class BrowseScreen extends StatefulWidget {
   final FsProvider provider;
   final OperationQueue queue;
-  final VoidCallback onToggleBrightness;
+  final VoidCallback? onToggleBrightness;
+
+  /// Optional left-side drawer (used by the top-level app shell to
+  /// switch between Storage and Vault).
+  final Widget? leadingDrawer;
+
+  /// Optional extra widget appended to the AppBar `actions` (e.g.
+  /// a "Lock vault" button when this screen is rendering an
+  /// unlocked [VaultFsProvider]).
+  final Widget? appBarSuffix;
 
   const BrowseScreen({
     super.key,
     required this.provider,
     required this.queue,
-    required this.onToggleBrightness,
+    this.onToggleBrightness,
+    this.leadingDrawer,
+    this.appBarSuffix,
   });
 
   @override
@@ -263,6 +274,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
     final hasClipboard = _clipboard != null;
 
     return Scaffold(
+      drawer: widget.leadingDrawer,
       appBar: _buildAppBar(theme, tokens, hasSelection),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -401,7 +413,15 @@ class _BrowseScreenState extends State<BrowseScreen> {
     }
     return AppBar(
       leading: _cwd.isRoot
-          ? const _BrandMark()
+          ? (widget.leadingDrawer != null
+                ? Builder(
+                    builder: (ctx) => IconButton(
+                      icon: const Icon(Icons.menu_rounded),
+                      tooltip: 'Menu',
+                      onPressed: () => Scaffold.of(ctx).openDrawer(),
+                    ),
+                  )
+                : const _BrandMark())
           : IconButton(
               icon: const Icon(Icons.arrow_back_rounded),
               tooltip: 'Up',
@@ -420,11 +440,13 @@ class _BrowseScreenState extends State<BrowseScreen> {
             }
           }),
         ),
-        IconButton(
-          icon: const Icon(Icons.brightness_6_outlined),
-          tooltip: 'Toggle brightness',
-          onPressed: widget.onToggleBrightness,
-        ),
+        if (widget.appBarSuffix != null) widget.appBarSuffix!,
+        if (widget.onToggleBrightness != null)
+          IconButton(
+            icon: const Icon(Icons.brightness_6_outlined),
+            tooltip: 'Toggle brightness',
+            onPressed: widget.onToggleBrightness,
+          ),
         SizedBox(width: tokens.spacing.xs),
       ],
     );
