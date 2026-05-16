@@ -93,7 +93,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _AboutRow(label: 'App', value: 'Fluff'),
               _AboutRow(label: 'Version', value: '1.0.0-rc.1'),
               _AboutRow(label: 'Channel', value: 'F-Droid · stable'),
-              _AboutRow(label: 'Source', value: 'github.com/yashs/fluff'),
+              _AboutRow(
+                label: 'Source',
+                value: 'github.com/iyashwantsaini/fluff',
+              ),
               _AboutRow(label: 'Telemetry', value: 'None. Ever.'),
             ],
           ),
