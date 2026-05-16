@@ -1,0 +1,30 @@
+name: fluff_documents_provider
+description: >-
+  Thin Android ContentProvider shim that exposes a Dart-defined FsProvider
+  to the system file picker via a cached FlutterEngine. Lets pure-Flutter
+  apps publish a DocumentsProvider without writing app-side Kotlin.
+version: 0.0.1
+publish_to: none
+repository: https://github.com/iyashwantsaini/fluff
+issue_tracker: https://github.com/iyashwantsaini/fluff/issues
+
+environment:
+  sdk: ^3.11.5
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  plugin_platform_interface: ^2.1.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  lints: ^6.0.0
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: dev.fluff.documents_provider
+        pluginClass: FluffDocumentsProviderPlugin

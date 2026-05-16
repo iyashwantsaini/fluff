@@ -125,7 +125,7 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 3 | `fluff_vault` (encrypted streaming AEAD) | ✅ (web slice; biometric / FLAG_SECURE / Move-to-vault → Phase 3.1) |
 | 4 | `fluff_remote` (SMB + SFTP) + foreground operations | ✅ (web slice with mock provider + accounts UI; real `smb_connect` / `dartssh2` + foreground operations → Phase 4.1) |
 | 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ✅ (Phase 5 web slice: `fluff_archive` read-only zip/tar/tar.gz viewer; libarchive 7z/RAR/zstd + write support → Phase 5.1) |
-| 6 | `fluff_documents_provider` shim plugin | ⬜ |
+| 6 | `fluff_documents_provider` shim plugin | 🟡 scaffold ([packages/fluff_native_shims/fluff_documents_provider](packages/fluff_native_shims/fluff_documents_provider/)) |
 | 7 | Servers + Quick Settings tiles + homescreen widgets | ✅ (Phase 6 web slice: `fluff_share` model + `ShareServerController` + Servers screen; real `shelf` / `dart:io` sockets, Quick Tiles, home widgets, boot auto-start → Phase 6.1) |
 | 8 | Sync, nearby transfer, share links | ✅ (Phase 7 web slice: `fluff_sync` with `SyncEngine` diff + `NearbyDiscovery` + Sync / Nearby screens; real mDNS, TLS Wi-Fi Direct, resumable transfers, scheduling, encrypted share links + QR → Phase 7.1) |
 | 9 | OCR + semantic search + AI organise | ✅ (Phase 8 web slice: `fluff_intel` with `SemanticIndex` + `OrganisePlanner` + Search / AI-organise screens; real ML Kit OCR, on-device embeddings, Gemini organise → Phase 8.1) |

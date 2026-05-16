@@ -4,6 +4,7 @@ repository: https://github.com/iyashwantsaini/fluff
 packages:
   - app
   - packages/*
+  - packages/fluff_native_shims/*
 
 command:
   bootstrap:
