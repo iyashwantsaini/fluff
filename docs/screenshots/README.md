@@ -47,6 +47,8 @@ The capture loop and the self-review checklist are codified in
 | Servers — list (all stopped) | ![Servers, light](latest/servers-list-light.png) | ![Servers, dark](latest/servers-list-dark.png) |
 | Servers — HTTP running with traffic | ![HTTP running, light](latest/server-http-running-light.png) | ![HTTP running, dark](latest/server-http-running-dark.png) |
 | Servers — WebDAV running with traffic | ![WebDAV running, light](latest/server-webdav-running-light.png) | ![WebDAV running, dark](latest/server-webdav-running-dark.png) |
+| Sync — pre-execution plan diff | ![Sync, light](latest/sync-plan-light.png) | ![Sync, dark](latest/sync-plan-dark.png) |
+| Nearby devices — list (Pixel paired) | ![Nearby, light](latest/nearby-list-light.png) | ![Nearby, dark](latest/nearby-list-dark.png) |
 
 Rows for not-yet-shipped states will render as broken images until
 the matching phase lands — that's deliberate, it's the to-do list.

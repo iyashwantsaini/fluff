@@ -25,6 +25,8 @@ dependencies:
     path: ../packages/fluff_archive
   fluff_share:
     path: ../packages/fluff_share
+  fluff_sync:
+    path: ../packages/fluff_sync
   archive: ^4.0.0
 
 dev_dependencies:

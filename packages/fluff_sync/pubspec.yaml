@@ -1,0 +1,20 @@
+name: fluff_sync
+description: >-
+  Sync engine + nearby-transfer scaffolding for Fluff. The web slice
+  computes a real plan diff between any two FsProviders and emits a
+  mock list of nearby devices; real mDNS / TLS Wi-Fi Direct land in
+  Phase 7.1.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  meta: ^1.16.0
+  fluff_vfs:
+    path: ../fluff_vfs
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

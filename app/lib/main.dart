@@ -4,13 +4,16 @@ import 'package:fluff_ops/fluff_ops.dart';
 import 'package:fluff_remote/fluff_remote.dart';
 import 'package:fluff_share/fluff_share.dart';
 import 'package:fluff_skin/fluff_skin.dart';
+import 'package:fluff_sync/fluff_sync.dart';
 import 'package:fluff_vfs/fluff_vfs.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import 'src/accounts_screen.dart';
 import 'src/browse_screen.dart';
+import 'src/nearby_screen.dart';
 import 'src/servers_screen.dart';
+import 'src/sync_screen.dart';
 import 'src/vault_screen.dart';
 
 void main() {
@@ -18,7 +21,7 @@ void main() {
 }
 
 /// Top-level shell state: which mount is active.
-enum _Mount { storage, vault, remote, archive, servers }
+enum _Mount { storage, vault, remote, archive, servers, sync, nearby }
 
 class FluffApp extends StatefulWidget {
   const FluffApp({super.key});
@@ -78,6 +81,17 @@ class _FluffAppState extends State<FluffApp> {
     seed: defaultSeedServers(),
   );
 
+  /// Phase 7 web slice: mock peer list for the Nearby screen.
+  late final NearbyDiscovery _nearby = NearbyDiscovery(
+    seed: defaultSeedNearbyDevices(),
+  );
+
+  /// Phase 7 web slice: two seeded in-memory `FsProvider`s the
+  /// sync engine can diff against. Lazily built in [_ensureSyncDemo].
+  MemFsProvider? _syncSource;
+  MemFsProvider? _syncTarget;
+  SyncPair? _syncPair;
+
   late final OperationQueue _queue = OperationQueue(
     providerLookup: (id) {
       if (id == _fs.id) return _fs;
@@ -122,6 +136,10 @@ class _FluffAppState extends State<FluffApp> {
             _servers.tick(bytes: 48 * 1024);
           }
         }
+      } else if (q['sync'] == '1') {
+        _mount = _Mount.sync;
+      } else if (q['nearby'] == '1') {
+        _mount = _Mount.nearby;
       }
     }
   }
@@ -134,7 +152,24 @@ class _FluffAppState extends State<FluffApp> {
     _accounts.dispose();
     // ignore: discarded_futures
     _servers.dispose();
+    // ignore: discarded_futures
+    _nearby.dispose();
     super.dispose();
+  }
+
+  Future<({MemFsProvider source, MemFsProvider target, SyncPair pair})>
+  _ensureSyncDemo() async {
+    var src = _syncSource;
+    var tgt = _syncTarget;
+    var pair = _syncPair;
+    if (src != null && tgt != null && pair != null) {
+      return (source: src, target: tgt, pair: pair);
+    }
+    final demo = await buildDemoSyncPair();
+    _syncSource = demo.source;
+    _syncTarget = demo.target;
+    _syncPair = demo.pair;
+    return demo;
   }
 
   ArchiveFsProvider _buildDemoArchive() {
@@ -221,6 +256,8 @@ class _FluffAppState extends State<FluffApp> {
             tile(_Mount.remote, Icons.cloud_outlined, 'Remote accounts'),
             tile(_Mount.archive, Icons.archive_outlined, 'Archive viewer'),
             tile(_Mount.servers, Icons.dns_outlined, 'Servers'),
+            tile(_Mount.sync, Icons.sync_rounded, 'Sync'),
+            tile(_Mount.nearby, Icons.wifi_tethering, 'Nearby'),
           ],
         ),
       ),
@@ -286,6 +323,34 @@ class _FluffAppState extends State<FluffApp> {
                 return ServersScreen(
                   controller: _servers,
                   drawer: _drawer(context, _Mount.servers),
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
+                );
+              case _Mount.sync:
+                return FutureBuilder<
+                  ({MemFsProvider source, MemFsProvider target, SyncPair pair})
+                >(
+                  future: _ensureSyncDemo(),
+                  builder: (context, snap) {
+                    if (!snap.hasData) {
+                      return const Scaffold(
+                        body: Center(child: CircularProgressIndicator()),
+                      );
+                    }
+                    final demo = snap.data!;
+                    return SyncScreen(
+                      source: demo.source,
+                      target: demo.target,
+                      pair: demo.pair,
+                      drawer: _drawer(context, _Mount.sync),
+                      onToggleBrightness: () =>
+                          _skin.toggleBrightness(context),
+                    );
+                  },
+                );
+              case _Mount.nearby:
+                return NearbyScreen(
+                  discovery: _nearby,
+                  drawer: _drawer(context, _Mount.nearby),
                   onToggleBrightness: () => _skin.toggleBrightness(context),
                 );
             }

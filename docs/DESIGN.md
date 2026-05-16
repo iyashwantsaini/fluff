@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phase 6 web slice** — servers list (HTTP / WebDAV / FTP / SFTP / DLNA) over a mock `ShareServerController`. Real sockets, Quick Settings tiles, home-screen widgets, and boot auto-start deferred to Phase 6.1. |
+| Current phase | **Phase 7 web slice** — sync engine + nearby discovery. `SyncEngine.plan()` produces a pre-execution diff between two `FsProvider`s (copy / replace / delete / skip + bytes-to-transfer); `NearbyDiscovery` lists peers and supports pair / unpair / forget. Deferred to 7.1: real mDNS via `multicast_dns`, TLS Wi-Fi Direct sockets, chunked resumable transfers via `OperationQueue`, scheduling + conflict strategy, one-time encrypted share links + QR. |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -79,6 +79,36 @@ Each pass of the **build-tier** skill appends an entry here with:
 - screenshots taken,
 - review findings,
 - fixes applied.
+
+### 2026-05-16 — Phase 7, first pass
+
+- **Scope**: new `fluff_sync` package (`SyncPair`, `SyncPlan`,
+  `SyncEntry`, `SyncAction`, `SyncEngine.plan({source, target,
+  deleteExtraneous})`; `NearbyDevice`, `NearbyDeviceKind`,
+  `NearbyDiscovery` with broadcast change stream + seed). Engine
+  walks both `FsProvider`s recursively, classifies entries as
+  copy / replace / delete / skip using size + mtime, and reports
+  bytes-to-transfer. 8 / 8 tests green via `dart test`.
+- **App**: two new mounts wired into the existing `_Mount` enum
+  and drawer: **Sync** (`?sync=1`) renders a `_PlanView` for a
+  seeded `Pictures → NAS backup` pair with badge summary (copy ·
+  replace · delete · skip · bytes) and a monospaced entry list;
+  **Nearby** (`?nearby=1`) lists three seeded peers (`Yash's
+  Pixel` paired, `Studio MacBook`, `Living-room TV`) with
+  per-kind icon, paired-state avatar, Pair / Unpair button, and
+  Forget action.
+- **Viewport**: same auto-detected `1233×1257` as previous phases.
+- **Screenshots**: 4 new PNGs — `sync-plan-{light,dark}.png` and
+  `nearby-list-{light,dark}.png`.
+- **Review**: both screens render flush to the edge gutter; badge
+  row wraps cleanly; action icons map 1:1 to badge colours; dark
+  paired-avatar contrast is comfortable. No clipping, no
+  asymmetric whitespace.
+- **Deferred (7.1)**: real mDNS discovery via `multicast_dns`,
+  TLS Wi-Fi Direct socket transfer, chunked resumable transfers
+  hooked into the existing `OperationQueue` (foreground task),
+  scheduling + cron-like triggers, conflict strategy picker per
+  pair, and one-time encrypted share links + QR.
 
 ### 2026-05-16 — Phase 1, first pass
 

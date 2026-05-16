@@ -113,7 +113,7 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ✅ (Phase 5 web slice: `fluff_archive` read-only zip/tar/tar.gz viewer; libarchive 7z/RAR/zstd + write support → Phase 5.1) |
 | 6 | `fluff_documents_provider` shim plugin | ⬜ |
 | 7 | Servers + Quick Settings tiles + homescreen widgets | ✅ (Phase 6 web slice: `fluff_share` model + `ShareServerController` + Servers screen; real `shelf` / `dart:io` sockets, Quick Tiles, home widgets, boot auto-start → Phase 6.1) |
-| 8 | Sync, nearby transfer, share links | ⬜ |
+| 8 | Sync, nearby transfer, share links | ✅ (Phase 7 web slice: `fluff_sync` with `SyncEngine` diff + `NearbyDiscovery` + Sync / Nearby screens; real mDNS, TLS Wi-Fi Direct, resumable transfers, scheduling, encrypted share links + QR → Phase 7.1) |
 | 9 | OCR + semantic search + AI organise | ⬜ |
 | 10 | Public 1.0 (F-Droid + GitHub Releases) | ⬜ |
 
