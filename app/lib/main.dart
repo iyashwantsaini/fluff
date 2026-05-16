@@ -1,3 +1,5 @@
+import 'dart:io' show Directory, Platform;
+
 import 'package:archive/archive.dart';
 import 'package:fluff_archive/fluff_archive.dart';
 import 'package:fluff_ops/fluff_ops.dart';
@@ -9,10 +11,12 @@ import 'package:fluff_sync/fluff_sync.dart';
 import 'package:fluff_vfs/fluff_vfs.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'src/accounts_screen.dart';
 import 'src/browse_screen.dart';
 import 'src/nearby_screen.dart';
+import 'src/onboarding_screen.dart';
 import 'src/organise_screen.dart';
 import 'src/prefs.dart';
 import 'src/search_screen.dart';
@@ -22,10 +26,49 @@ import 'src/sync_screen.dart';
 import 'src/viewer_screen.dart';
 import 'src/vault_screen.dart';
 
+/// Compile-time gate: demo / mock mounts (archive, remote, servers,
+/// sync, nearby, search, organise) only ship in debug builds.
+/// Release APKs land users straight on their real device storage.
+const bool _kShowDemoMounts = kDebugMode;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Prefs.init();
   runApp(const FluffApp());
+}
+
+/// Resolves the default root directory for [LocalFsProvider] on the
+/// current platform. On Android we want the user's external storage
+/// (e.g. `/storage/emulated/0`); elsewhere we fall back to the
+/// documents dir so the desktop / web debug build still has
+/// something real to show.
+Future<FsProvider> _buildDefaultLocalProvider() async {
+  if (kIsWeb) {
+    return MemFsProvider.demo();
+  }
+  try {
+    if (Platform.isAndroid) {
+      // Walk up from the app-private external dir to the shared
+      // /storage/emulated/0 root that file-manager users expect.
+      final dirs = await getExternalStorageDirectories();
+      if (dirs != null && dirs.isNotEmpty) {
+        Directory d = dirs.first;
+        // /storage/emulated/0/Android/data/<pkg>/files → up 4.
+        for (int i = 0; i < 4 && d.parent.path != d.path; i++) {
+          d = d.parent;
+        }
+        return LocalFsProvider(rootDir: d, displayName: 'Internal storage');
+      }
+      return LocalFsProvider(
+        rootDir: Directory('/storage/emulated/0'),
+        displayName: 'Internal storage',
+      );
+    }
+    final docs = await getApplicationDocumentsDirectory();
+    return LocalFsProvider(rootDir: docs, displayName: 'Documents');
+  } catch (_) {
+    return MemFsProvider.demo();
+  }
 }
 
 /// Top-level shell state: which mount is active.
@@ -56,7 +99,8 @@ class _FluffAppState extends State<FluffApp> {
         : Prefs.instance.themeMode,
   );
 
-  late final FsProvider _fs = MemFsProvider.demo();
+  FsProvider? _fs;
+  bool _bootstrapping = true;
 
   /// Backing FS for the encrypted vault container.
   late final FsProvider _vaultBacking = MemFsProvider(
@@ -120,7 +164,8 @@ class _FluffAppState extends State<FluffApp> {
 
   late final OperationQueue _queue = OperationQueue(
     providerLookup: (id) {
-      if (id == _fs.id) return _fs;
+      final fs = _fs;
+      if (fs != null && id == fs.id) return fs;
       if (id == _vaultBacking.id) return _vaultBacking;
       if (id == _archive.id) return _archive;
       final rp = _remoteProvider;
@@ -137,6 +182,16 @@ class _FluffAppState extends State<FluffApp> {
   void initState() {
     super.initState();
     _skin.addListener(_persistTheme);
+    // Bootstrap the default storage provider asynchronously so the
+    // shell can render a loading screen while path_provider resolves.
+    () async {
+      final fs = await _buildDefaultLocalProvider();
+      if (!mounted) return;
+      setState(() {
+        _fs = fs;
+        _bootstrapping = false;
+      });
+    }();
     if (kIsWeb) {
       final q = Uri.base.queryParameters;
       if ((q['vault'] ?? '').isNotEmpty) {
@@ -182,10 +237,12 @@ class _FluffAppState extends State<FluffApp> {
         WidgetsBinding.instance.addPostFrameCallback((_) {
           final ctx = _rootNavKey.currentContext;
           if (ctx == null) return;
+          final fs = _fs;
+          if (fs == null) return;
           Navigator.of(ctx).push(
             MaterialPageRoute<void>(
               builder: (_) => ViewerScreen(
-                provider: _fs,
+                provider: fs,
                 path: FsPath.parse(viewPath),
                 onToggleBrightness: () => _skin.toggleBrightness(ctx),
               ),
@@ -311,13 +368,15 @@ class _FluffAppState extends State<FluffApp> {
             const Divider(height: 1),
             tile(_Mount.storage, Icons.folder_outlined, 'Storage'),
             tile(_Mount.vault, Icons.lock_rounded, 'Vault'),
-            tile(_Mount.remote, Icons.cloud_outlined, 'Remote accounts'),
-            tile(_Mount.archive, Icons.archive_outlined, 'Archive viewer'),
-            tile(_Mount.servers, Icons.dns_outlined, 'Servers'),
-            tile(_Mount.sync, Icons.sync_rounded, 'Sync'),
-            tile(_Mount.nearby, Icons.wifi_tethering, 'Nearby'),
-            tile(_Mount.search, Icons.search_rounded, 'Search'),
-            tile(_Mount.organise, Icons.auto_awesome_rounded, 'AI organise'),
+            if (_kShowDemoMounts) ...[
+              tile(_Mount.remote, Icons.cloud_outlined, 'Remote accounts'),
+              tile(_Mount.archive, Icons.archive_outlined, 'Archive viewer'),
+              tile(_Mount.servers, Icons.dns_outlined, 'Servers'),
+              tile(_Mount.sync, Icons.sync_rounded, 'Sync'),
+              tile(_Mount.nearby, Icons.wifi_tethering, 'Nearby'),
+              tile(_Mount.search, Icons.search_rounded, 'Search'),
+              tile(_Mount.organise, Icons.auto_awesome_rounded, 'AI organise'),
+            ],
             tile(_Mount.settings, Icons.settings_outlined, 'Settings'),
           ],
         ),
@@ -373,10 +432,21 @@ class _FluffAppState extends State<FluffApp> {
             },
             home: Builder(
               builder: (context) {
+                if (!Prefs.instance.firstRunComplete) {
+                  return OnboardingScreen(
+                    skin: _skin,
+                    onFinished: () => setState(() {}),
+                  );
+                }
+                if (_bootstrapping || _fs == null) {
+                  return const Scaffold(
+                    body: Center(child: CircularProgressIndicator()),
+                  );
+                }
                 switch (_mount) {
                   case _Mount.storage:
                     return BrowseScreen(
-                      provider: _fs,
+                      provider: _fs!,
                       queue: _queue,
                       onToggleBrightness: () => _skin.toggleBrightness(context),
                       leadingDrawer: _drawer(context, _Mount.storage),

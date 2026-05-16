@@ -76,4 +76,15 @@ class Prefs extends ChangeNotifier {
     await _sp.setBool(_kHapticOnLongPress, v);
     notifyListeners();
   }
+
+  // ---- onboarding -----------------------------------------------------
+
+  static const _kFirstRunComplete = 'fluff.firstRunComplete';
+
+  bool get firstRunComplete => _sp.getBool(_kFirstRunComplete) ?? false;
+
+  Future<void> setFirstRunComplete(bool v) async {
+    await _sp.setBool(_kFirstRunComplete, v);
+    notifyListeners();
+  }
 }
