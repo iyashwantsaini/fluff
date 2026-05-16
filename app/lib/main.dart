@@ -18,6 +18,7 @@ import 'src/search_screen.dart';
 import 'src/servers_screen.dart';
 import 'src/settings_screen.dart';
 import 'src/sync_screen.dart';
+import 'src/viewer_screen.dart';
 import 'src/vault_screen.dart';
 
 void main() {
@@ -127,6 +128,7 @@ class _FluffAppState extends State<FluffApp> {
 
   _Mount _mount = _Mount.storage;
   String? _initialQuery;
+  final GlobalKey<NavigatorState> _rootNavKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
@@ -170,6 +172,22 @@ class _FluffAppState extends State<FluffApp> {
         _mount = _Mount.organise;
       } else if (q['settings'] == '1') {
         _mount = _Mount.settings;
+      }
+      final viewPath = q['view'];
+      if (viewPath != null && viewPath.isNotEmpty) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          final ctx = _rootNavKey.currentContext;
+          if (ctx == null) return;
+          Navigator.of(ctx).push(
+            MaterialPageRoute<void>(
+              builder: (_) => ViewerScreen(
+                provider: _fs,
+                path: FsPath.parse(viewPath),
+                onToggleBrightness: () => _skin.toggleBrightness(ctx),
+              ),
+            ),
+          );
+        });
       }
     }
   }
@@ -304,6 +322,7 @@ class _FluffAppState extends State<FluffApp> {
       builder: (context, light, dark, mode) => MaterialApp(
         title: 'Fluff',
         debugShowCheckedModeBanner: false,
+        navigatorKey: _rootNavKey,
         theme: light,
         darkTheme: dark,
         themeMode: mode,

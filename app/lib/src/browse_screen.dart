@@ -9,8 +9,13 @@ import 'package:flutter/material.dart';
 import 'conflict_dialog.dart';
 import 'progress_sheet.dart';
 import 'properties_dialog.dart';
+import 'viewer_screen.dart';
 
 enum _ClipboardKind { copy, cut }
+
+enum _SortKey { name, size, modified }
+
+enum _ViewMode { list, grid }
 
 class _Clipboard {
   final _ClipboardKind kind;
@@ -59,6 +64,11 @@ class _BrowseScreenState extends State<BrowseScreen> {
 
   final Set<FsPath> _selected = {};
   _Clipboard? _clipboard;
+
+  _SortKey _sortKey = _SortKey.name;
+  bool _sortAsc = true;
+  _ViewMode _viewMode = _ViewMode.list;
+  bool _showHidden = false;
 
   bool _searching = false;
   String _query = '';
@@ -263,6 +273,72 @@ class _BrowseScreenState extends State<BrowseScreen> {
     }
   }
 
+  void _openFile(FsNode node) {
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ViewerScreen(
+          provider: widget.provider,
+          path: node.path,
+          onToggleBrightness: widget.onToggleBrightness,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _newFolder() async {
+    final ctrl = TextEditingController(text: 'New folder');
+    final name = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('New folder'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          decoration: const InputDecoration(hintText: 'Folder name'),
+          onSubmitted: (v) => Navigator.of(ctx).pop(v),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(ctx).pop(ctrl.text),
+            child: const Text('Create'),
+          ),
+        ],
+      ),
+    );
+    if (name == null || name.trim().isEmpty) return;
+    await widget.provider.mkdir(_cwd.child(name.trim()));
+    _refresh();
+  }
+
+  List<FsNode> _applyViewPrefs(List<FsNode> input) {
+    final filtered = input.where((n) => _showHidden || !n.name.startsWith('.'));
+    final searched = filtered.where(
+      (n) =>
+          _query.isEmpty || n.name.toLowerCase().contains(_query.toLowerCase()),
+    );
+    final list = searched.toList()
+      ..sort((a, b) {
+        // Always group folders first.
+        if (a.isDirectory != b.isDirectory) {
+          return a.isDirectory ? -1 : 1;
+        }
+        final cmp = switch (_sortKey) {
+          _SortKey.name => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+          _SortKey.size => a.size.compareTo(b.size),
+          _SortKey.modified =>
+            (a.modified ?? DateTime.fromMillisecondsSinceEpoch(0)).compareTo(
+              b.modified ?? DateTime.fromMillisecondsSinceEpoch(0),
+            ),
+        };
+        return _sortAsc ? cmp : -cmp;
+      });
+    return list;
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -303,13 +379,7 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     ),
                   );
                 }
-                final items = (snap.data ?? const <FsNode>[])
-                    .where(
-                      (n) =>
-                          _query.isEmpty ||
-                          n.name.toLowerCase().contains(_query.toLowerCase()),
-                    )
-                    .toList();
+                final items = _applyViewPrefs(snap.data ?? const <FsNode>[]);
                 if (items.isEmpty) {
                   return Center(
                     child: Text(
@@ -322,30 +392,50 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     ),
                   );
                 }
+                Widget tile(int i) {
+                  final n = items[i];
+                  final isSelected = _selected.contains(n.path);
+                  return _FsNodeTile(
+                    node: n,
+                    selected: isSelected,
+                    selectionActive: hasSelection,
+                    onTap: () {
+                      if (hasSelection) {
+                        _toggleSelect(n.path);
+                      } else if (n.isDirectory) {
+                        _navigate(n.path);
+                      } else {
+                        _openFile(n);
+                      }
+                    },
+                    onLongPress: () => _toggleSelect(n.path),
+                  );
+                }
+
+                if (_viewMode == _ViewMode.grid) {
+                  final width = MediaQuery.of(context).size.width;
+                  final crossAxisCount = (width / 200).floor().clamp(2, 6);
+                  return GridView.builder(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: gutter,
+                      vertical: tokens.spacing.sm,
+                    ),
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: crossAxisCount,
+                      crossAxisSpacing: tokens.spacing.sm,
+                      mainAxisSpacing: tokens.spacing.sm,
+                      mainAxisExtent: 76,
+                    ),
+                    itemCount: items.length,
+                    itemBuilder: (_, i) => tile(i),
+                  );
+                }
                 return ListView.separated(
                   padding: EdgeInsets.symmetric(
                     horizontal: gutter,
                     vertical: tokens.spacing.sm,
                   ),
-                  itemBuilder: (_, i) {
-                    final n = items[i];
-                    final isSelected = _selected.contains(n.path);
-                    return _FsNodeTile(
-                      node: n,
-                      selected: isSelected,
-                      selectionActive: hasSelection,
-                      onTap: () {
-                        if (hasSelection) {
-                          _toggleSelect(n.path);
-                        } else if (n.isDirectory) {
-                          _navigate(n.path);
-                        } else {
-                          _showProperties(n.path);
-                        }
-                      },
-                      onLongPress: () => _toggleSelect(n.path),
-                    );
-                  },
+                  itemBuilder: (_, i) => tile(i),
                   separatorBuilder: (_, _) =>
                       SizedBox(height: tokens.spacing.xs),
                   itemCount: items.length,
@@ -366,8 +456,52 @@ class _BrowseScreenState extends State<BrowseScreen> {
                     : 'Move here',
               ),
             )
-          : null,
+          : (!hasSelection && !_searching
+                ? FloatingActionButton(
+                    onPressed: _newFolder,
+                    tooltip: 'New folder',
+                    child: const Icon(Icons.create_new_folder_outlined),
+                  )
+                : null),
     );
+  }
+
+  void _handleMenu(String value) {
+    switch (value) {
+      case 'new':
+        _newFolder();
+      case 'refresh':
+        _refresh();
+      case 'hidden':
+        setState(() => _showHidden = !_showHidden);
+      case 'sort-name':
+        setState(() {
+          if (_sortKey == _SortKey.name) {
+            _sortAsc = !_sortAsc;
+          } else {
+            _sortKey = _SortKey.name;
+            _sortAsc = true;
+          }
+        });
+      case 'sort-size':
+        setState(() {
+          if (_sortKey == _SortKey.size) {
+            _sortAsc = !_sortAsc;
+          } else {
+            _sortKey = _SortKey.size;
+            _sortAsc = false;
+          }
+        });
+      case 'sort-modified':
+        setState(() {
+          if (_sortKey == _SortKey.modified) {
+            _sortAsc = !_sortAsc;
+          } else {
+            _sortKey = _SortKey.modified;
+            _sortAsc = false;
+          }
+        });
+    }
   }
 
   PreferredSizeWidget _buildAppBar(
@@ -439,6 +573,86 @@ class _BrowseScreenState extends State<BrowseScreen> {
               _searchCtrl.clear();
             }
           }),
+        ),
+        IconButton(
+          tooltip: _viewMode == _ViewMode.list ? 'Grid view' : 'List view',
+          icon: Icon(
+            _viewMode == _ViewMode.list
+                ? Icons.grid_view_rounded
+                : Icons.view_list_rounded,
+          ),
+          onPressed: () => setState(
+            () => _viewMode = _viewMode == _ViewMode.list
+                ? _ViewMode.grid
+                : _ViewMode.list,
+          ),
+        ),
+        PopupMenuButton<String>(
+          tooltip: 'More',
+          icon: const Icon(Icons.more_vert_rounded),
+          onSelected: _handleMenu,
+          itemBuilder: (_) => [
+            const PopupMenuItem(value: 'new', child: Text('New folder')),
+            const PopupMenuItem(value: 'refresh', child: Text('Refresh')),
+            const PopupMenuDivider(),
+            CheckedPopupMenuItem(
+              value: 'hidden',
+              checked: _showHidden,
+              child: const Text('Show hidden'),
+            ),
+            const PopupMenuDivider(),
+            PopupMenuItem(
+              value: 'sort-name',
+              child: Row(
+                children: [
+                  Icon(
+                    _sortKey == _SortKey.name
+                        ? (_sortAsc
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded)
+                        : Icons.sort_by_alpha_rounded,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Sort by name'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'sort-size',
+              child: Row(
+                children: [
+                  Icon(
+                    _sortKey == _SortKey.size
+                        ? (_sortAsc
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded)
+                        : Icons.straighten_rounded,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Sort by size'),
+                ],
+              ),
+            ),
+            PopupMenuItem(
+              value: 'sort-modified',
+              child: Row(
+                children: [
+                  Icon(
+                    _sortKey == _SortKey.modified
+                        ? (_sortAsc
+                              ? Icons.arrow_upward_rounded
+                              : Icons.arrow_downward_rounded)
+                        : Icons.schedule_rounded,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  const Text('Sort by modified'),
+                ],
+              ),
+            ),
+          ],
         ),
         if (widget.appBarSuffix != null) widget.appBarSuffix!,
         if (widget.onToggleBrightness != null)

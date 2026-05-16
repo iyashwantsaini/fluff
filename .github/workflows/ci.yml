@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  analyze-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap workspace
+        run: melos bootstrap
+
+      - name: Analyze (all packages + app)
+        run: melos exec -- "dart analyze --fatal-infos"
+
+      - name: Test (packages)
+        run: melos exec --scope="fluff_*" --dir-exists=test -- "dart test"
+
+      - name: Build web (smoke)
+        working-directory: app
+        run: flutter build web --no-tree-shake-icons
+
+      - name: Upload web artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-${{ github.sha }}
+          path: app/build/web
+          retention-days: 14

@@ -1,0 +1,101 @@
+name: Release
+
+on:
+  push:
+    tags: ['v*.*.*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g. v1.0.0-rc.1)'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install melos
+        run: dart pub global activate melos
+
+      - name: Bootstrap
+        run: melos bootstrap
+
+      # ----------------------------------------------------------
+      # Decode signing keystore from base64 secret. If KEYSTORE_BASE64
+      # is not set, fall back to debug signing so the workflow still
+      # produces an installable (but unsigned-for-release) APK.
+      # ----------------------------------------------------------
+      - name: Decode keystore
+        id: keystore
+        env:
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            mkdir -p app/android/keystore
+            echo "$KEYSTORE_BASE64" | base64 -d > app/android/keystore/release.jks
+            cat > app/android/key.properties <<EOF
+          storeFile=keystore/release.jks
+          storePassword=${{ secrets.KEYSTORE_PASSWORD }}
+          keyAlias=${{ secrets.KEY_ALIAS }}
+          keyPassword=${{ secrets.KEY_PASSWORD }}
+          EOF
+            echo "signed=true" >> $GITHUB_OUTPUT
+          else
+            echo "signed=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build web
+        working-directory: app
+        run: flutter build web --no-tree-shake-icons --release
+
+      - name: Build APK
+        working-directory: app
+        run: flutter build apk --release --split-per-abi
+        continue-on-error: true
+
+      - name: Build AAB
+        if: steps.keystore.outputs.signed == 'true'
+        working-directory: app
+        run: flutter build appbundle --release
+        continue-on-error: true
+
+      - name: Package web
+        run: |
+          cd app/build/web
+          zip -r ../../../fluff-web.zip .
+
+      - name: Resolve tag
+        id: tag
+        run: |
+          if [ -n "${{ inputs.tag }}" ]; then
+            echo "name=${{ inputs.tag }}" >> $GITHUB_OUTPUT
+          else
+            echo "name=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create / update release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: false
+          files: |
+            fluff-web.zip
+            app/build/app/outputs/flutter-apk/*.apk
+            app/build/app/outputs/bundle/release/*.aab
