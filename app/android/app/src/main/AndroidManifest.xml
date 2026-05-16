@@ -15,6 +15,8 @@
     <!-- video_player needs INTERNET for network streams; audio + video
          playback on Android 13+ benefit from FOREGROUND_SERVICE_MEDIA_PLAYBACK. -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <!-- APK install handed off to the system package installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <application
         android:label="fluff"

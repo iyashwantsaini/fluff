@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show File;
+import 'dart:io' show File, Platform;
 
 import 'package:archive/archive.dart';
 import 'package:chewie/chewie.dart';
@@ -8,11 +8,16 @@ import 'package:fluff_skin/fluff_skin.dart';
 import 'package:fluff_vfs/fluff_vfs.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_html/flutter_html.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:just_audio/just_audio.dart' as ja;
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:pdfx/pdfx.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:video_player/video_player.dart';
+import 'package:xml/xml.dart';
 
 /// Returns a viewer kind for [name], based on extension. Recognised
 /// kinds: image, svg, markdown, text, video, audio, pdf, ebook,
@@ -131,6 +136,19 @@ class ViewerScreen extends StatefulWidget {
 class _ViewerScreenState extends State<ViewerScreen> {
   late final Future<Uint8List> _bytes = widget.provider.readBytes(widget.path);
 
+  Future<void> _share() async {
+    try {
+      final bytes = await _bytes;
+      final tmp = await getTemporaryDirectory();
+      final safe = widget.path.name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+      final f = File('${tmp.path}/fluff_share_$safe');
+      await f.writeAsBytes(bytes, flush: true);
+      await Share.shareXFiles([XFile(f.path)], subject: widget.path.name);
+    } catch (e) {
+      if (mounted) _snack(context, 'Could not share: $e');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = widget.path.name;
@@ -139,11 +157,12 @@ class _ViewerScreenState extends State<ViewerScreen> {
       appBar: AppBar(
         title: Text(name, overflow: TextOverflow.ellipsis),
         actions: [
-          IconButton(
-            tooltip: 'Share',
-            icon: const Icon(Icons.share_outlined),
-            onPressed: () => _snack(context, 'Share lands in Phase 9.2'),
-          ),
+          if (!kIsWeb)
+            IconButton(
+              tooltip: 'Share',
+              icon: const Icon(Icons.share_outlined),
+              onPressed: _share,
+            ),
           if (widget.onToggleBrightness != null)
             IconButton(
               tooltip: 'Toggle theme',
@@ -167,8 +186,8 @@ class _ViewerScreenState extends State<ViewerScreen> {
             'archive' => _ArchiveView(name: name, bytes: data),
             'audio' => _AudioView(name: name, bytes: data),
             'video' => _VideoView(name: name, bytes: data),
-            'pdf' ||
-            'ebook' => _MediaPlaceholder(name: name, kind: kind, bytes: data),
+            'pdf' => _PdfView(name: name, bytes: data),
+            'ebook' => _EbookView(name: name, bytes: data),
             _ => _HexView(bytes: data),
           };
         },
@@ -398,8 +417,7 @@ class _ArchiveView extends StatelessWidget {
               ),
               if (_isApk)
                 FilledButton.icon(
-                  onPressed: () =>
-                      _snack(context, 'Install intent wires up in Phase 9.2'),
+                  onPressed: () => _installApk(context, name, bytes),
                   icon: const Icon(Icons.install_mobile_rounded),
                   label: const Text('Install'),
                 ),
@@ -514,10 +532,10 @@ class _MediaPlaceholder extends StatelessWidget {
   };
 
   String get _title => switch (kind) {
-    'video' => 'Native video player ships in Phase 9.1',
-    'audio' => 'Native audio player ships in Phase 9.1',
-    'pdf' => 'Native PDF renderer ships in Phase 9.1',
-    'ebook' => 'Ebook reader ships in Phase 9.1',
+    'video' => 'Video could not be decoded',
+    'audio' => 'Audio could not be decoded',
+    'pdf' => 'PDF could not be rendered',
+    'ebook' => 'Ebook could not be opened',
     'archive' => 'Archive details',
     _ => 'Inline preview not available yet',
   };
@@ -549,8 +567,7 @@ class _MediaPlaceholder extends StatelessWidget {
               spacing: tokens.spacing.sm,
               children: [
                 OutlinedButton.icon(
-                  onPressed: () =>
-                      _snack(context, 'Open with… lands in Phase 9.2'),
+                  onPressed: () => _openWith(context, name, bytes),
                   icon: const Icon(Icons.open_in_new_rounded),
                   label: const Text('Open with…'),
                 ),
@@ -879,4 +896,362 @@ class _VideoViewState extends State<_VideoView> {
       ),
     );
   }
+}
+
+/// Writes [bytes] to a temp file and asks the OS to open it with the
+/// user's chosen handler. No-op with a snack on web (no system "open
+/// with" picker exists in the browser).
+Future<void> _openWith(
+  BuildContext context,
+  String name,
+  Uint8List bytes,
+) async {
+  if (kIsWeb) {
+    _snack(context, 'Open with… is only available on native builds');
+    return;
+  }
+  try {
+    final tmp = await getTemporaryDirectory();
+    final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    final f = File('${tmp.path}/fluff_open_$safe');
+    await f.writeAsBytes(bytes, flush: true);
+    final result = await OpenFilex.open(f.path);
+    if (result.type != ResultType.done && context.mounted) {
+      _snack(context, 'Open with… failed: ${result.message}');
+    }
+  } catch (e) {
+    if (context.mounted) _snack(context, 'Could not open: $e');
+  }
+}
+
+/// Hands the APK file to Android's package installer. On non-Android
+/// platforms there is nothing meaningful to do, so we fall back to
+/// the generic "open with" picker.
+Future<void> _installApk(
+  BuildContext context,
+  String name,
+  Uint8List bytes,
+) async {
+  if (kIsWeb) {
+    _snack(context, 'APK install is only available on Android');
+    return;
+  }
+  if (!Platform.isAndroid) {
+    return _openWith(context, name, bytes);
+  }
+  try {
+    final tmp = await getTemporaryDirectory();
+    final safe = name.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+    if (!safe.toLowerCase().endsWith('.apk')) {
+      // OpenFilex relies on extension → MIME mapping; force .apk so the
+      // package installer is offered.
+    }
+    final outName = safe.toLowerCase().endsWith('.apk') ? safe : '$safe.apk';
+    final f = File('${tmp.path}/$outName');
+    await f.writeAsBytes(bytes, flush: true);
+    final result = await OpenFilex.open(
+      f.path,
+      type: 'application/vnd.android.package-archive',
+    );
+    if (result.type != ResultType.done && context.mounted) {
+      _snack(context, 'Install failed: ${result.message}');
+    }
+  } catch (e) {
+    if (context.mounted) _snack(context, 'Could not install: $e');
+  }
+}
+
+/// PDF viewer powered by [pdfx]. Renders pages on demand and exposes
+/// page-number + total in the bottom bar plus zoom via gestures.
+class _PdfView extends StatefulWidget {
+  const _PdfView({required this.name, required this.bytes});
+  final String name;
+  final Uint8List bytes;
+
+  @override
+  State<_PdfView> createState() => _PdfViewState();
+}
+
+class _PdfViewState extends State<_PdfView> {
+  PdfControllerPinch? _controller;
+  Object? _error;
+  int _page = 1;
+  int _total = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    try {
+      _controller = PdfControllerPinch(
+        document: PdfDocument.openData(widget.bytes),
+      );
+    } catch (e) {
+      _error = e;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null || _controller == null) {
+      return _MediaPlaceholder(
+        name: widget.name,
+        kind: 'pdf',
+        bytes: widget.bytes,
+        extra: 'Could not parse PDF: ${_error ?? "unknown error"}',
+      );
+    }
+    final cs = Theme.of(context).colorScheme;
+    return Column(
+      children: [
+        Expanded(
+          child: PdfViewPinch(
+            controller: _controller!,
+            onDocumentLoaded: (doc) => setState(() => _total = doc.pagesCount),
+            onPageChanged: (p) => setState(() => _page = p),
+            scrollDirection: Axis.vertical,
+          ),
+        ),
+        Material(
+          color: cs.surfaceContainerHigh,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Previous page',
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    onPressed: _page > 1
+                        ? () => _controller!.previousPage(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                          )
+                        : null,
+                  ),
+                  Expanded(
+                    child: Text(
+                      _total == 0 ? 'Loading…' : 'Page $_page of $_total',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Next page',
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    onPressed: _total > 0 && _page < _total
+                        ? () => _controller!.nextPage(
+                            duration: const Duration(milliseconds: 200),
+                            curve: Curves.easeOut,
+                          )
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Minimal pure-Dart EPUB renderer. Parses the container.xml +
+/// package.opf to recover the spine order, then renders each XHTML
+/// chapter through [flutter_html] on demand. Stylesheets and images
+/// inside the EPUB are ignored — this is a reader, not a layout
+/// engine — but text reflows and is selectable.
+class _EbookView extends StatefulWidget {
+  const _EbookView({required this.name, required this.bytes});
+  final String name;
+  final Uint8List bytes;
+
+  @override
+  State<_EbookView> createState() => _EbookViewState();
+}
+
+class _EbookViewState extends State<_EbookView> {
+  Archive? _archive;
+  List<_EpubChapter> _chapters = const [];
+  Object? _error;
+  int _index = 0;
+  final PageController _pager = PageController();
+
+  @override
+  void initState() {
+    super.initState();
+    final ext = widget.name.toLowerCase().split('.').last;
+    if (ext != 'epub') {
+      _error = 'Only EPUB is supported in v1; .$ext needs libmobi (FFI).';
+      return;
+    }
+    try {
+      final a = ZipDecoder().decodeBytes(widget.bytes);
+      _archive = a;
+      _chapters = _parseEpub(a);
+      if (_chapters.isEmpty) {
+        _error = 'EPUB had no spine items';
+      }
+    } catch (e) {
+      _error = e;
+    }
+  }
+
+  @override
+  void dispose() {
+    _pager.dispose();
+    super.dispose();
+  }
+
+  List<_EpubChapter> _parseEpub(Archive a) {
+    ArchiveFile? container;
+    for (final f in a.files) {
+      if (f.name == 'META-INF/container.xml') {
+        container = f;
+        break;
+      }
+    }
+    if (container == null) return const [];
+    final containerDoc = XmlDocument.parse(
+      String.fromCharCodes(container.content as List<int>),
+    );
+    final rootfile = containerDoc
+        .findAllElements('rootfile')
+        .firstWhere(
+          (_) => true,
+          orElse: () => throw StateError('No rootfile in container.xml'),
+        );
+    final opfPath = rootfile.getAttribute('full-path')!;
+    final opfFile = a.files.firstWhere(
+      (f) => f.name == opfPath,
+      orElse: () => throw StateError('Missing $opfPath'),
+    );
+    final opfDir = opfPath.contains('/')
+        ? opfPath.substring(0, opfPath.lastIndexOf('/') + 1)
+        : '';
+    final opfDoc = XmlDocument.parse(
+      String.fromCharCodes(opfFile.content as List<int>),
+    );
+    // manifest: id -> href
+    final manifest = <String, String>{};
+    for (final item in opfDoc.findAllElements('item')) {
+      final id = item.getAttribute('id');
+      final href = item.getAttribute('href');
+      if (id != null && href != null) manifest[id] = href;
+    }
+    // spine: ordered list of idref
+    final out = <_EpubChapter>[];
+    for (final ref in opfDoc.findAllElements('itemref')) {
+      final id = ref.getAttribute('idref');
+      if (id == null) continue;
+      final href = manifest[id];
+      if (href == null) continue;
+      final full = '$opfDir$href';
+      final f = a.files.firstWhere(
+        (x) => x.name == full,
+        orElse: () => ArchiveFile.string(full, ''),
+      );
+      out.add(
+        _EpubChapter(
+          href: full,
+          html: String.fromCharCodes(f.content as List<int>),
+        ),
+      );
+    }
+    return out;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null || _archive == null) {
+      return _MediaPlaceholder(
+        name: widget.name,
+        kind: 'ebook',
+        bytes: widget.bytes,
+        extra: 'Could not open ebook: $_error',
+      );
+    }
+    final cs = Theme.of(context).colorScheme;
+    final tokens = WlmTheme.of(context).tokens;
+    return Column(
+      children: [
+        Expanded(
+          child: PageView.builder(
+            controller: _pager,
+            itemCount: _chapters.length,
+            onPageChanged: (i) => setState(() => _index = i),
+            itemBuilder: (context, i) {
+              final c = _chapters[i];
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(tokens.spacing.lg),
+                child: SelectionArea(
+                  child: Html(
+                    data: c.html,
+                    style: {
+                      'body': Style(
+                        fontSize: FontSize(16),
+                        lineHeight: const LineHeight(1.5),
+                        color: cs.onSurface,
+                      ),
+                      'a': Style(color: cs.primary),
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        Material(
+          color: cs.surfaceContainerHigh,
+          child: SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              child: Row(
+                children: [
+                  IconButton(
+                    tooltip: 'Previous chapter',
+                    icon: const Icon(Icons.chevron_left_rounded),
+                    onPressed: _index > 0
+                        ? () => _pager.previousPage(
+                            duration: const Duration(milliseconds: 240),
+                            curve: Curves.easeOut,
+                          )
+                        : null,
+                  ),
+                  Expanded(
+                    child: Text(
+                      'Chapter ${_index + 1} of ${_chapters.length}',
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Next chapter',
+                    icon: const Icon(Icons.chevron_right_rounded),
+                    onPressed: _index < _chapters.length - 1
+                        ? () => _pager.nextPage(
+                            duration: const Duration(milliseconds: 240),
+                            curve: Curves.easeOut,
+                          )
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _EpubChapter {
+  const _EpubChapter({required this.href, required this.html});
+  final String href;
+  final String html;
 }
