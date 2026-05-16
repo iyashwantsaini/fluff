@@ -1,0 +1,17 @@
+name: fluff_share
+description: >-
+  Sharing servers (HTTP, WebDAV, FTP, SFTP, DLNA) and nearby-transfer
+  scaffolding for Fluff. The web slice ships pure-Dart models and an
+  in-memory controller; real sockets land in Phase 6.1.
+version: 0.0.1
+publish_to: none
+
+environment:
+  sdk: ^3.11.5
+
+dependencies:
+  meta: ^1.16.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0

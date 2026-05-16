@@ -44,6 +44,9 @@ The capture loop and the self-review checklist are codified in
 | Remote — SMB mock (`Home NAS`) | ![SMB, light](latest/remote-smb-light.png) | ![SMB, dark](latest/remote-smb-dark.png) |
 | Archive viewer — `fluff-demo.zip` root | ![Archive root, light](latest/archive-root-light.png) | ![Archive root, dark](latest/archive-root-dark.png) |
 | Archive viewer — `/src` inside zip | ![Archive src, light](latest/archive-src-light.png) | ![Archive src, dark](latest/archive-src-dark.png) |
+| Servers — list (all stopped) | ![Servers, light](latest/servers-list-light.png) | ![Servers, dark](latest/servers-list-dark.png) |
+| Servers — HTTP running with traffic | ![HTTP running, light](latest/server-http-running-light.png) | ![HTTP running, dark](latest/server-http-running-dark.png) |
+| Servers — WebDAV running with traffic | ![WebDAV running, light](latest/server-webdav-running-light.png) | ![WebDAV running, dark](latest/server-webdav-running-dark.png) |
 
 Rows for not-yet-shipped states will render as broken images until
 the matching phase lands — that's deliberate, it's the to-do list.

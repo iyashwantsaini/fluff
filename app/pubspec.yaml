@@ -23,6 +23,8 @@ dependencies:
     path: ../packages/fluff_remote
   fluff_archive:
     path: ../packages/fluff_archive
+  fluff_share:
+    path: ../packages/fluff_share
   archive: ^4.0.0
 
 dev_dependencies:

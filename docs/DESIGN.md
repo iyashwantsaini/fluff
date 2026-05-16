@@ -6,7 +6,7 @@
 
 | Field | Value |
 | --- | --- |
-| Current phase | **Phases 4 + 5 web slices** — remote accounts (mock SMB/SFTP) and archive viewer (zip/tar/tar.gz). Real `SmbFsProvider` / `SftpFsProvider` deferred to Phase 4.1; libarchive 7z/RAR/zstd deferred to Phase 5.1. |
+| Current phase | **Phase 6 web slice** — servers list (HTTP / WebDAV / FTP / SFTP / DLNA) over a mock `ShareServerController`. Real sockets, Quick Settings tiles, home-screen widgets, and boot auto-start deferred to Phase 6.1. |
 | Last updated | 2026-05-16 |
 | Flutter SDK target | stable (verified per iteration) |
 | wloom version | `wolwoloom: ^0.3.5` (pin; vendor if upstream breaks) |
@@ -339,6 +339,61 @@ Each pass of the **build-tier** skill appends an entry here with:
     (format sniffing, read-only capabilities, root + nested
     listing, byte round-trip, all mutation methods throw, missing
     paths return `null` from `stat`).
+
+### 2026-05-16 — Phase 6, first pass (web slice)
+
+- **Scope**: `packages/fluff_share/` (pure Dart) ships a
+  `ShareServerKind` enum (`http`, `webdav`, `ftp`, `sftp`, `dlna`)
+  with per-kind default ports, an immutable `ShareServer` model
+  (id / kind / label / port / requiresAuth / username /
+  isRunning / bytesServed with `copyWith` + value equality), and a
+  `ShareServerController` that holds the list, emits a broadcast
+  `changes` snapshot per mutation, and exposes
+  `start` / `stop` / `toggle` / `tick(bytes:)` so the UI can demo
+  traffic without a real socket. `defaultSeedServers()` produces
+  one entry per kind with stable ids.
+- **App changes**: `_Mount` gained a fifth value `servers`;
+  Drawer gained an `Icons.dns_outlined` "Servers" row.
+  `ServersScreen` (web-slice equivalent of `AccountsScreen`)
+  lists `ShareServer`s with a kind-specific icon, a primary-
+  tinted CircleAvatar when running, a status pill, the loopback
+  URL in monospace, a bytes-served counter, a `Switch` wired to
+  `controller.toggle`, and a delete button. `_AddServerDialog`
+  uses a 5-segment `SegmentedButton`; the port field hints the
+  selected kind's default. URL handlers added:
+  `?servers=1` and `?server=<id>` (the latter starts that server
+  and pumps two 48 KiB ticks so the running tile looks live).
+- **Routes / states added** (light + dark each): `servers-list`,
+  `server-http-running`, `server-webdav-running`.
+- **Viewport**: detected `1233×1257`, pinned with
+  `page.setViewportSize` before every capture.
+- **Findings**:
+  - ✅ Tile layout absorbs the longer "WebDAV share" / "DLNA share"
+    labels without wrapping; status pill and switch stay aligned.
+  - ✅ The "running" colour treatment (primary avatar + primary
+    pill + filled switch) reads as one logical group; stopped
+    rows recede into `surfaceContainerHighest`.
+  - ✅ Loopback URLs use monospace so the port digits don't kern
+    away from the host.
+  - ✅ Drawer "Servers" row lights up when active; switching back
+    to Storage from Servers does not leak the controller stream.
+- **Deferred to Phase 6.1 (Android)**:
+  - Real HTTP / WebDAV servers over `shelf`.
+  - FTP and SFTP servers over `dart:io` sockets.
+  - DLNA: raw SSDP via `RawDatagramSocket` + `shelf` for HTTP.
+  - `flutter_foreground_task` integration so a running server
+    survives screen-off; status pill colour stays in sync.
+  - `fluff_quick_tile` shim for one-tap Quick Settings toggles.
+  - `home_widget` integration for a server-toggle widget.
+  - `android_alarm_manager_plus` opt-in boot auto-start.
+  - One-time encrypted share links + QR (overlaps with Phase 7).
+- **Tests**: `dart test packages/fluff_share` — 9 / 9 green
+  (default port, validation rejects empty label / out-of-range
+  port / auth-without-username, `loopbackUrl` carries port for
+  every kind, controller emits an event per mutation, list sorts
+  by kind index then label, `start` / `stop` / `toggle` flip the
+  flag and reset bytes on stop, `tick` only mutates running
+  servers, `defaultSeedServers()` covers every kind exactly once).
 
 ---
 

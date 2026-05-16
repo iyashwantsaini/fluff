@@ -112,7 +112,7 @@ Full module graph and rationale in [PLAN.md §4](PLAN.md#4-architecture).
 | 4 | `fluff_remote` (SMB + SFTP) + foreground operations | ✅ (web slice with mock provider + accounts UI; real `smb_connect` / `dartssh2` + foreground operations → Phase 4.1) |
 | 5 | `fluff_ffi` + `libarchive` (7z / RAR-read / zstd) | ✅ (Phase 5 web slice: `fluff_archive` read-only zip/tar/tar.gz viewer; libarchive 7z/RAR/zstd + write support → Phase 5.1) |
 | 6 | `fluff_documents_provider` shim plugin | ⬜ |
-| 7 | Servers + Quick Settings tiles + homescreen widgets | ⬜ |
+| 7 | Servers + Quick Settings tiles + homescreen widgets | ✅ (Phase 6 web slice: `fluff_share` model + `ShareServerController` + Servers screen; real `shelf` / `dart:io` sockets, Quick Tiles, home widgets, boot auto-start → Phase 6.1) |
 | 8 | Sync, nearby transfer, share links | ⬜ |
 | 9 | OCR + semantic search + AI organise | ⬜ |
 | 10 | Public 1.0 (F-Droid + GitHub Releases) | ⬜ |

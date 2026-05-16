@@ -2,6 +2,7 @@ import 'package:archive/archive.dart';
 import 'package:fluff_archive/fluff_archive.dart';
 import 'package:fluff_ops/fluff_ops.dart';
 import 'package:fluff_remote/fluff_remote.dart';
+import 'package:fluff_share/fluff_share.dart';
 import 'package:fluff_skin/fluff_skin.dart';
 import 'package:fluff_vfs/fluff_vfs.dart';
 import 'package:flutter/foundation.dart';
@@ -9,6 +10,7 @@ import 'package:flutter/material.dart';
 
 import 'src/accounts_screen.dart';
 import 'src/browse_screen.dart';
+import 'src/servers_screen.dart';
 import 'src/vault_screen.dart';
 
 void main() {
@@ -16,7 +18,7 @@ void main() {
 }
 
 /// Top-level shell state: which mount is active.
-enum _Mount { storage, vault, remote, archive }
+enum _Mount { storage, vault, remote, archive, servers }
 
 class FluffApp extends StatefulWidget {
   const FluffApp({super.key});
@@ -70,6 +72,12 @@ class _FluffAppState extends State<FluffApp> {
   /// [ArchiveFsProvider].
   late final ArchiveFsProvider _archive = _buildDemoArchive();
 
+  /// Phase 6 web slice: mock controller seeded with one entry per
+  /// supported wire protocol (HTTP / WebDAV / FTP / SFTP / DLNA).
+  late final ShareServerController _servers = ShareServerController(
+    seed: defaultSeedServers(),
+  );
+
   late final OperationQueue _queue = OperationQueue(
     providerLookup: (id) {
       if (id == _fs.id) return _fs;
@@ -101,6 +109,19 @@ class _FluffAppState extends State<FluffApp> {
         }
       } else if (q['accounts'] == '1') {
         _mount = _Mount.remote;
+      } else if (q['servers'] == '1' || (q['server'] ?? '').isNotEmpty) {
+        _mount = _Mount.servers;
+        final id = q['server'];
+        if (id != null && id.isNotEmpty) {
+          final s = _servers.byId(id);
+          if (s != null && !s.isRunning) {
+            _servers.start(s.id);
+            // Seed a non-zero counter so the running tile demos
+            // meaningful traffic without waiting for ticks.
+            _servers.tick(bytes: 48 * 1024);
+            _servers.tick(bytes: 48 * 1024);
+          }
+        }
       }
     }
   }
@@ -111,6 +132,8 @@ class _FluffAppState extends State<FluffApp> {
     _queue.dispose();
     // ignore: discarded_futures
     _accounts.dispose();
+    // ignore: discarded_futures
+    _servers.dispose();
     super.dispose();
   }
 
@@ -197,6 +220,7 @@ class _FluffAppState extends State<FluffApp> {
             tile(_Mount.vault, Icons.lock_rounded, 'Vault'),
             tile(_Mount.remote, Icons.cloud_outlined, 'Remote accounts'),
             tile(_Mount.archive, Icons.archive_outlined, 'Archive viewer'),
+            tile(_Mount.servers, Icons.dns_outlined, 'Servers'),
           ],
         ),
       ),
@@ -257,6 +281,12 @@ class _FluffAppState extends State<FluffApp> {
                   queue: _queue,
                   onToggleBrightness: () => _skin.toggleBrightness(context),
                   leadingDrawer: _drawer(context, _Mount.archive),
+                );
+              case _Mount.servers:
+                return ServersScreen(
+                  controller: _servers,
+                  drawer: _drawer(context, _Mount.servers),
+                  onToggleBrightness: () => _skin.toggleBrightness(context),
                 );
             }
           },
